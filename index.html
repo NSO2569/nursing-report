@@ -243,6 +243,9 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
       <div class="gs-chip" id="gsChip" onclick="openGsModal()">
         <span id="gsIco">📋</span><span id="gsLbl">Sheet</span>
       </div>
+      <div class="gs-chip" onclick="clearTodayData()" style="color:#fca5a5;border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.08)">
+        🗑
+      </div>
     </div>
   </div>
   <div class="shift-tabs">
@@ -442,30 +445,10 @@ const SPECIAL=[
   {dept:'พิเศษ',name:'ห้องผ่าตัด OR',beds:0},
   {dept:'พิเศษ',name:'งานวิสัญญี',beds:0},
 ];
-const SAMPLE={
-  0:{prev:11,admit:0,dc:0,out:3,inn:0,rn:3,tn:0,pn:1,na:0},1:{prev:0,admit:0,dc:0,out:3,inn:0,rn:3,tn:0,pn:1,na:0},
-  2:{prev:17,admit:3,dc:0,out:4,inn:2,rn:5,tn:0,pn:1,na:0},3:{prev:23,admit:3,dc:4,out:2,inn:5,rn:5,tn:0,pn:1,na:0},
-  4:{prev:14,admit:7,dc:7,out:5,inn:1,rn:5,tn:0,pn:2,na:0},5:{prev:28,admit:2,dc:1,out:6,inn:1,rn:5,tn:0,pn:2,na:0},
-  6:{prev:22,admit:2,dc:0,out:4,inn:1,rn:4,tn:0,pn:1,na:0},7:{prev:13,admit:0,dc:2,out:3,inn:0,rn:3,tn:0,pn:2,na:0},
-  8:{prev:15,admit:0,dc:0,out:2,inn:1,rn:2,tn:0,pn:1,na:0},9:{prev:16,admit:0,dc:0,out:2,inn:0,rn:2,tn:0,pn:0,na:0},
-  10:{prev:16,admit:5,dc:2,out:4,inn:2,rn:4,tn:0,pn:2,na:0},11:{prev:7,admit:13,dc:1,out:6,inn:0,rn:6,tn:0,pn:2,na:0},
-  12:{prev:10,admit:6,dc:1,out:6,inn:1,rn:6,tn:0,pn:2,na:0},13:{prev:25,admit:0,dc:1,out:6,inn:2,rn:6,tn:0,pn:2,na:0},
-  14:{prev:25,admit:1,dc:3,out:6,inn:2,rn:6,tn:0,pn:2,na:0},15:{prev:8,admit:4,dc:3,out:4,inn:0,rn:4,tn:0,pn:2,na:0},
-  16:{prev:3,admit:0,dc:0,out:2,inn:0,rn:2,tn:0,pn:0,na:0},17:{prev:4,admit:1,dc:1,out:2,inn:1,rn:2,tn:0,pn:1,na:0},
-  18:{prev:15,admit:0,dc:0,out:3,inn:1,rn:3,tn:0,pn:1,na:0},19:{prev:15,admit:2,dc:0,out:3,inn:1,rn:3,tn:0,pn:1,na:0},
-  20:{prev:4,admit:1,dc:1,out:3,inn:0,rn:3,tn:0,pn:1,na:0},21:{prev:11,admit:0,dc:1,out:2,inn:0,rn:2,tn:0,pn:1,na:0},
-  22:{prev:20,admit:1,dc:2,out:5,inn:2,rn:5,tn:0,pn:2,na:0},23:{prev:6,admit:0,dc:0,out:2,inn:0,rn:2,tn:0,pn:2,na:0},
-  24:{prev:7,admit:2,dc:0,out:2,inn:2,rn:2,tn:0,pn:1,na:0},25:{prev:11,admit:1,dc:2,out:3,inn:1,rn:3,tn:0,pn:1,na:0},
-  26:{prev:13,admit:0,dc:0,out:3,inn:1,rn:3,tn:0,pn:1,na:0},27:{prev:14,admit:13,dc:0,out:7,inn:2,rn:7,tn:0,pn:2,na:0},
-  28:{prev:7,admit:7,dc:1,out:4,inn:2,rn:4,tn:0,pn:2,na:0},29:{prev:5,admit:1,dc:1,out:3,inn:1,rn:3,tn:0,pn:1,na:0},
-  30:{prev:5,admit:0,dc:0,out:3,inn:1,rn:3,tn:0,pn:1,na:0},31:{prev:8,admit:5,dc:0,out:4,inn:1,rn:4,tn:0,pn:1,na:0},
-};
-const SU_SAMPLE={
-  'ห้องฉุกเฉิน ER':{total:57,obs:11,dc:26,admit:18,ref:0,dead:0,hold:13,rn:9,pn:2},
-  'ห้องคลอด':{prev:0,abn:0,cs:1,opd:1,wh:0,wr:1,ref:1,tr:0,rn:3,tn:0,pn:1},
-  'ห้องผ่าตัด OR':{prev:2,sent:8,set:5,done:913,cancel:0,rem:2,rn:4,pn:1,na:2,aid:2},
-  'งานวิสัญญี':{prev:2,wait:4,back:6,rem:0,rn:3,pn:0,na:0,aid:2},
-};
+// ไม่มีข้อมูลตัวอย่าง — แสดง 0 ทั้งหมดจนกว่าจะกรอกข้อมูลจริง
+const EMPTY_WARD={prev:0,admit:0,dc:0,out:0,inn:0,rn:0,tn:0,pn:0,na:0};
+const EMPTY_SU={total:0,obs:0,dc:0,admit:0,ref:0,dead:0,hold:0,obsh:0,rn:0,tn:0,pn:0,na:0,
+  prev:0,abn:0,cs:0,opd:0,wh:0,wr:0,tr:0,sent:0,set:0,done:0,cancel:0,rem:0,wait:0,back:0,aid:0};
 
 // ═══════════════════════════════════════════════
 //  STATE
@@ -501,11 +484,11 @@ function getWardData(shift){
   const r={};
   WARDS.forEach((w,i)=>{
     const s=lsG(`ipd_${w.name}_${shift}_${tk()}`);
-    r[i]=s||(shift==='morning'?SAMPLE[i]:{})||{prev:0,admit:0,dc:0,out:0,inn:0,rn:0,tn:0,pn:0,na:0};
+    r[i]=s||{...EMPTY_WARD};
   });
   return r;
 }
-function getSUData(name){return lsG(`su_${name}_${tk()}`)||SU_SAMPLE[name]||{};}
+function getSUData(name){return lsG(`su_${name}_${tk()}`)||{...EMPTY_SU};}
 
 // ═══════════════════════════════════════════════
 //  SHIFT & PAGE
@@ -952,6 +935,22 @@ async function sendToSheet(){
     await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify({sheet,headers,rows})});
     showToast('✓ ส่งข้อมูลเข้า Google Sheet สำเร็จ','ok');
   }catch{showToast('❌ ส่งไม่สำเร็จ ตรวจสอบ URL','err');}
+}
+
+// ═══ CLEAR DATA ═══
+function clearTodayData(){
+  if(!confirm('ล้างข้อมูลทั้งหมดของวันนี้?\nไม่สามารถกู้คืนได้')) return;
+  const today=tk();
+  let count=0;
+  Object.keys(localStorage).forEach(k=>{
+    if(k.includes(today)&&(k.startsWith('ipd_')||k.startsWith('su_'))){
+      localStorage.removeItem(k); count++;
+    }
+  });
+  if(curWard) backToSelector();
+  buildAll();
+  buildWardSelector();
+  showToast(`✓ ล้างข้อมูลวันนี้แล้ว ${count} รายการ`,'ok');
 }
 
 // ═══ AUTO REFRESH ═══
