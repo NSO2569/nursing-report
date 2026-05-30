@@ -215,8 +215,9 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
 .toast.ok{background:var(--grn)}.toast.err{background:var(--red)}
 
 /* TABS inside entry special */
-.su-tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
-.su-tab{padding:7px 14px;border-radius:40px;border:1.5px solid var(--brd);background:var(--surf2);font-family:'Sarabun',sans-serif;font-size:12px;font-weight:600;color:var(--mut);cursor:pointer;transition:all .2s}
+.su-tabs{display:flex;gap:6px;margin-bottom:12px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.su-tabs::-webkit-scrollbar{height:0}
+.su-tab{padding:7px 14px;border-radius:40px;border:1.5px solid var(--brd);background:var(--surf2);font-family:'Sarabun',sans-serif;font-size:12px;font-weight:600;color:var(--mut);cursor:pointer;transition:all .2s;white-space:nowrap;flex-shrink:0}
 .su-tab.on{border-color:var(--blue);background:var(--blue-l);color:var(--blue)}
 
 /* REFRESH timer */
@@ -261,10 +262,10 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
   <button onclick="buildAll()">🔄 รีเฟรช</button>
 </div>
 
-<!-- BOTTOM ACTIONS (for entry) -->
+<!-- BOTTOM ACTIONS (for IPD entry and OPD entry) -->
 <div class="bot-actions hidden" id="botActions">
-  <button class="btn-sheet" onclick="sendToSheet()">📤 ส่ง Sheet</button>
-  <button class="btn-save" onclick="saveEntry()">💾 บันทึกข้อมูล</button>
+  <button class="btn-sheet" onclick="handleSendSheet()">📤 ส่ง Sheet</button>
+  <button class="btn-save" onclick="handleSave()">💾 บันทึกข้อมูล</button>
 </div>
 
 <!-- PAGES -->
@@ -303,6 +304,12 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
     <div class="sec-h"><h2>🔬 หน่วยงานพิเศษ</h2></div>
     <div class="sec-b"><div class="su4" id="suGrid"></div></div>
   </div>
+
+  <!-- OPD summary in dashboard -->
+  <div class="sec">
+    <div class="sec-h"><h2>🏥 OPD — สรุปยอดวันนี้</h2><span class="badge" id="db-opd-ct">0 คลินิก</span></div>
+    <div class="sec-b" id="dbOpdSummary"></div>
+  </div>
 </div>
 
 <!-- PAGE 2: WARD LIST + OCC -->
@@ -327,10 +334,42 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
     <div class="sec-h"><h2>👩‍⚕️ อัตรากำลัง IPD — เวรนี้</h2></div>
     <div class="sec-b"><div class="sf-list" id="staffList"></div></div>
   </div>
-  <!-- Special staff in staff page -->
   <div class="sec">
     <div class="sec-h"><h2>👩‍⚕️ อัตรากำลัง หน่วยงานพิเศษ</h2></div>
     <div class="sec-b"><div class="sf-list" id="suStaffList"></div></div>
+  </div>
+  <div class="sec">
+    <div class="sec-h"><h2>👩‍⚕️ อัตรากำลัง OPD</h2></div>
+    <div class="sec-b"><div class="sf-list" id="opdStaffList"></div></div>
+  </div>
+</div>
+
+<!-- PAGE 4: OPD -->
+<div class="page" id="page-opd">
+  <!-- OPD KPI strip (always visible) -->
+  <div class="kpi2" style="margin-bottom:10px">
+    <div class="kc kt"><div class="kl">ผู้ป่วย OPD รวม</div><div class="kn" id="opd-kv-total">—</div><div class="ks">ทุกคลินิก</div></div>
+    <div class="kc kg"><div class="kl">บุคลากรรวม</div><div class="kn" id="opd-kv-staff">—</div><div class="ks">ทุกคลินิก</div></div>
+  </div>
+
+  <!-- OPD Clinic Selector -->
+  <div id="opdSelector">
+    <div class="sec">
+      <div class="sec-h"><h2>🏥 เลือกคลินิก OPD</h2></div>
+      <div class="sec-b">
+        <div class="ward-sel-grid" id="opdSelGrid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPD Entry Form (hidden until clinic selected) -->
+  <div id="opdEntryForm" class="entry-form">
+    <div class="entry-hdr">
+      <div class="entry-ward-badge" id="opd-ef-name" style="background:var(--teal,#0f766e)">—</div>
+      <div class="entry-ward-beds" id="opd-ef-sub">—</div>
+      <button class="back-btn" onclick="backToOpdSelector()">← เลือกคลินิกใหม่</button>
+    </div>
+    <div id="opdEfBody"></div>
   </div>
 </div>
 
@@ -344,11 +383,15 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
         <div style="margin-bottom:10px">
           <div class="su-tabs">
             <button class="su-tab on" onclick="filterWards('all',this)">ทั้งหมด</button>
-            <button class="su-tab" onclick="filterWards('สูติ',this)">สูติ</button>
-            <button class="su-tab" onclick="filterWards('ศัลย',this)">ศัลย</button>
-            <button class="su-tab" onclick="filterWards('อายุร',this)">อายุร</button>
-            <button class="su-tab" onclick="filterWards('ICU',this)">ICU</button>
-            <button class="su-tab" onclick="filterWards('พิเศษ',this)">หน่วยพิเศษ</button>
+            <button class="su-tab" onclick="filterWards('สูติ',this)">🤱 สูติ</button>
+            <button class="su-tab" onclick="filterWards('ศัลย',this)">🔪 ศัลย</button>
+            <button class="su-tab" onclick="filterWards('กระดูก',this)">🦴 กระดูก</button>
+            <button class="su-tab" onclick="filterWards('จักษุ',this)">👁 จักษุ/ENT</button>
+            <button class="su-tab" onclick="filterWards('อายุร',this)">💊 อายุร</button>
+            <button class="su-tab" onclick="filterWards('กุมาร',this)">🧒 กุมาร</button>
+            <button class="su-tab" onclick="filterWards('จิตเวช',this)">🧠 จิตเวช</button>
+            <button class="su-tab" onclick="filterWards('ICU',this)">🏥 ICU</button>
+            <button class="su-tab" onclick="filterWards('พิเศษ',this)">🔬 หน่วยพิเศษ</button>
           </div>
         </div>
         <div class="ward-sel-grid" id="wardSelGrid"></div>
@@ -408,10 +451,11 @@ function doGet(e) {
 </div>
 
 <!-- BOTTOM NAV -->
-<div class="bot-nav">
+<div class="bot-nav" style="grid-template-columns:repeat(5,1fr)">
   <button class="bn on" onclick="switchPage('dash',this)"><span class="bni">📊</span>ภาพรวม</button>
   <button class="bn" onclick="switchPage('wards',this)"><span class="bni">🛏</span>รายหอ</button>
-  <button class="bn" onclick="switchPage('staff',this)"><span class="bni">👩‍⚕️</span>อัตรากำลัง</button>
+  <button class="bn" onclick="switchPage('staff',this)"><span class="bni">👩‍⚕️</span>กำลังพล</button>
+  <button class="bn" onclick="switchPage('opd',this)"><span class="bni">🏥</span>OPD</button>
   <button class="bn" onclick="switchPage('entry',this)"><span class="bni">✏️</span>ลงข้อมูล</button>
 </div>
 
@@ -422,22 +466,45 @@ function doGet(e) {
 //  DATA
 // ═══════════════════════════════════════════════
 const WARDS=[
-  {dept:'สูติ',name:'พิเศษสติ-นรีเวช',beds:19},{dept:'สูติ',name:'สูติ-นรีเวชกรรม',beds:30},
-  {dept:'ศัลย',name:'ศัลยกรรมทั่วไป',beds:18},{dept:'ศัลย',name:'ศัลยกรรมหญิง',beds:30},
-  {dept:'ศัลย',name:'ศัลยกรรมอุบัติเหตุ',beds:30},{dept:'ศัลย',name:'ศัลยกรรมทั่วไป B',beds:40},
-  {dept:'ศัลย',name:'สมเด็จย่า ชั้น 1',beds:36},{dept:'ศัลย',name:'พิเศษศัลยกรรม',beds:15},
-  {dept:'จักษุ',name:'จักษุ หู คอ จมูก',beds:17},{dept:'กระดูก',name:'ศัลยกรรมกระดูก A',beds:16},
-  {dept:'กระดูก',name:'ศัลยกรรมกระดูก B',beds:30},{dept:'อายุร',name:'Semi-critical A',beds:24},
-  {dept:'อายุร',name:'Semi-critical B',beds:24},{dept:'อายุร',name:'อายุรกรรมหญิง',beds:40},
-  {dept:'อายุร',name:'อายุรกรรมชาย',beds:40},{dept:'อายุร',name:'Stroke Unit',beds:16},
-  {dept:'อายุร',name:'ภปร (บน)',beds:5},{dept:'อายุร',name:'ภปร (ล่าง)',beds:10},
-  {dept:'อายุร',name:'พิเศษอายุร A',beds:15},{dept:'อายุร',name:'พิเศษอายุร B',beds:15},
-  {dept:'อายุร',name:'สงฆ์-อายุรกรรม',beds:25},{dept:'อายุร',name:'เคมีบำบัด',beds:20},
-  {dept:'อายุร',name:'สมเด็จย่า ชั้น 4',beds:30},{dept:'จิตเวช',name:'แนทจิต',beds:15},
-  {dept:'กุมาร',name:'พิเศษกุมารเวช',beds:15},{dept:'กุมาร',name:'กุมารเวชกรรม',beds:32},
-  {dept:'กุมาร',name:'ทารกแรกเกิด',beds:24},{dept:'ICU',name:'ICU ศัลยกรรม',beds:12},
-  {dept:'ICU',name:'ICU อายุรกรรม',beds:8},{dept:'ICU',name:'CCU',beds:6},
-  {dept:'ICU',name:'ICU กุมาร',beds:10},{dept:'ICU',name:'ทารกแรกเกิดวิกฤต',beds:14},
+  // สูติกรรม
+  {dept:'สูติ',name:'พิเศษสติ-นรีเวช',beds:19},
+  {dept:'สูติ',name:'สูติ-นรีเวชกรรม (สูติ 26/นรีเวช 10)',beds:36},
+  // ศัลยกรรม
+  {dept:'ศัลย',name:'ศัลยกรรมทั่วไป ชั้น 5',beds:40},
+  {dept:'ศัลย',name:'ศัลยกรรมหญิง',beds:30},
+  {dept:'ศัลย',name:'ศัลยกรรมอุบัติเหตุ ชั้น 4',beds:30},
+  {dept:'ศัลย',name:'สมเด็จย่า ชั้น 3',beds:36},
+  {dept:'ศัลย',name:'พิเศษศัลยกรรม ชั้น 6',beds:15},
+  {dept:'ศัลย',name:'พิเศษศัลยกรรม ชั้น 14',beds:18},
+  // จักษุ
+  {dept:'จักษุ',name:'จักษุ หู คอ จมูก (จักษุ 17/หู คอ จมูก 8)',beds:25},
+  // ศัลยกรรมกระดูก
+  {dept:'กระดูก',name:'ศัลยกรรมกระดูก ชั้น 2',beds:30},
+  // อายุรกรรม
+  {dept:'อายุร',name:'Semi-critical 5',beds:24},
+  {dept:'อายุร',name:'Semi-critical 6',beds:24},
+  {dept:'อายุร',name:'อายุรกรรมหญิง 7',beds:40},
+  {dept:'อายุร',name:'อายุรกรรมชาย 8',beds:40},
+  {dept:'อายุร',name:'Stroke Unit',beds:16},
+  {dept:'อายุร',name:'ภปร (บน)',beds:5},
+  {dept:'อายุร',name:'ภปร (ล่าง)',beds:10},
+  {dept:'อายุร',name:'พิเศษอายุรกรรม ชั้น 7',beds:15},
+  {dept:'อายุร',name:'พิเศษอายุรกรรม ชั้น 8',beds:15},
+  {dept:'อายุร',name:'สงฆ์-อายุรกรรม',beds:25},
+  {dept:'อายุร',name:'เคมีบำบัด',beds:20},
+  {dept:'อายุร',name:'สมเด็จย่า ชั้น 4',beds:30},
+  // จิตเวช
+  {dept:'จิตเวช',name:'หอผู้ป่วยนนทรี',beds:15},
+  // กุมารเวช
+  {dept:'กุมาร',name:'พิเศษกุมารเวช',beds:15},
+  {dept:'กุมาร',name:'กุมารเวชกรรม',beds:32},
+  {dept:'กุมาร',name:'ทารกแรกเกิด',beds:24},
+  // ICU
+  {dept:'ICU',name:'ICU ศัลยกรรม',beds:12},
+  {dept:'ICU',name:'ICU อายุรกรรม',beds:8},
+  {dept:'ICU',name:'CCU',beds:6},
+  {dept:'ICU',name:'ICU กุมาร',beds:10},
+  {dept:'ICU',name:'ทารกแรกเกิดวิกฤต',beds:14},
 ];
 const SPECIAL=[
   {dept:'พิเศษ',name:'ห้องฉุกเฉิน ER',beds:0},
@@ -449,6 +516,20 @@ const SPECIAL=[
 const EMPTY_WARD={prev:0,admit:0,dc:0,out:0,inn:0,rn:0,tn:0,pn:0,na:0};
 const EMPTY_SU={total:0,obs:0,dc:0,admit:0,ref:0,dead:0,hold:0,obsh:0,rn:0,tn:0,pn:0,na:0,
   prev:0,abn:0,cs:0,opd:0,wh:0,wr:0,tr:0,sent:0,set:0,done:0,cancel:0,rem:0,wait:0,back:0,aid:0};
+
+// OPD คลินิก
+const OPD_CLINICS=[
+  {id:'opd-surg',  name:'OPD ศัลยกรรม',   icon:'🔪',color:'#b45309'},
+  {id:'opd-med',   name:'OPD อายุรกรรม',  icon:'💊',color:'#1e40af'},
+  {id:'opd-ent',   name:'OPD ENT',         icon:'👂',color:'#0369a1'},
+  {id:'opd-eye',   name:'OPD จักษุ',       icon:'👁',color:'#0f766e'},
+  {id:'opd-ped',   name:'OPD กุมาร',       icon:'🧒',color:'#047857'},
+  {id:'opd-ob',    name:'OPD สูตินรีเวช',  icon:'🤱',color:'#be185d'},
+  {id:'opd-derm',  name:'OPD ผิวหนัง',     icon:'🩺',color:'#7c3aed'},
+  {id:'opd-ortho', name:'OPD กระดูก',      icon:'🦴',color:'#92400e'},
+  {id:'opd-sso',   name:'OPD ประกันสังคม', icon:'🏢',color:'#374151'},
+  {id:'opd-psych', name:'OPD จิตเวช',      icon:'🧠',color:'#4c1d95'},
+];
 
 // ═══════════════════════════════════════════════
 //  STATE
@@ -489,6 +570,7 @@ function getWardData(shift){
   return r;
 }
 function getSUData(name){return lsG(`su_${name}_${tk()}`)||{...EMPTY_SU};}
+function getOpdData(){return lsG(`opd_${tk()}`)||{};}
 
 // ═══════════════════════════════════════════════
 //  SHIFT & PAGE
@@ -507,6 +589,8 @@ function switchPage(p,btn){
   btn.classList.add('on');
   $('botActions').classList.add('hidden');
   if(p==='entry'&&curWard) $('botActions').classList.remove('hidden');
+  if(p==='opd'&&curOpd) $('botActions').classList.remove('hidden');
+  if(p==='opd'&&!curOpd){ buildOpdSelector(); buildOpdChart(); }
 }
 
 // ═══════════════════════════════════════════════
@@ -595,33 +679,48 @@ function buildAll(){
 
 function buildSUGrid(er,cl,or_,ws,erRate,elId){
   const el=$(elId);if(!el)return;
+  const orEl=(or_.elective||0);
+  const orEm=(or_.emergency||0);
+  const orTotal=orEl+orEm;
+  const wsTotal=(ws.ga||0)+(ws.sb||0)+(ws.mac||0);
+  const asaHigh=(ws.asa4||0)+(ws.asa5||0)+(ws.asa6||0);
+  const asaTotal=(ws.asa1||0)+(ws.asa2||0)+(ws.asa3||0)+asaHigh;
+  const asaHighPct=asaTotal>0?Math.round((asaHigh/asaTotal)*100):0;
+  const clTotal=(cl.normal||0)+(cl.abn||0)+(cl.cs||0);
+  const csPct=clTotal>0?Math.round(((cl.cs||0)/clTotal)*100):0;
+  const triageTotal=(er.l1||0)+(er.l2||0)+(er.l3||0)+(er.l4||0)+(er.l5||0);
+  const critPct=triageTotal>0?Math.round(((( er.l1||0)+(er.l2||0))/triageTotal)*100):0;
   el.innerHTML=`
     <div class="su-card">
       <div class="su-card-h"><span class="su-ico">🚨</span><span class="su-nm">ER</span></div>
       <div class="su-stat"><span class="su-lbl">บริการรวม</span><span class="su-val" style="color:var(--er)">${er.total||0}</span></div>
+      <div class="su-stat"><span class="su-lbl">🔴 Resus+Emerg</span><span class="su-val" style="color:var(--red)">${(er.l1||0)+(er.l2||0)} (${critPct}%)</span></div>
       <div class="su-stat"><span class="su-lbl">Admit Rate</span><span class="su-val" style="color:var(--grn)">${erRate}%</span></div>
       <div class="su-stat"><span class="su-lbl">คงค้าง</span><span class="su-val" style="color:var(--amb)">${er.hold||0}</span></div>
       <div class="su-stat"><span class="su-lbl">RN/PN</span><span class="su-val">${er.rn||0}/${er.pn||0}</span></div>
     </div>
     <div class="su-card">
       <div class="su-card-h"><span class="su-ico">🤱</span><span class="su-nm">ห้องคลอด</span></div>
-      <div class="su-stat"><span class="su-lbl">คลอดรวม</span><span class="su-val" style="color:var(--cl)">${(cl.abn||0)+(cl.cs||0)}</span></div>
-      <div class="su-stat"><span class="su-lbl">C/S</span><span class="su-val">${cl.cs||0}</span></div>
+      <div class="su-stat"><span class="su-lbl">คลอดรวม</span><span class="su-val" style="color:var(--cl)">${clTotal}</span></div>
+      <div class="su-stat"><span class="su-lbl">คลอดปกติ</span><span class="su-val">${cl.normal||0}</span></div>
+      <div class="su-stat"><span class="su-lbl">C/S</span><span class="su-val" style="color:var(--amb)">${cl.cs||0} (${csPct}%)</span></div>
       <div class="su-stat"><span class="su-lbl">Refer</span><span class="su-val" style="color:var(--red)">${cl.ref||0}</span></div>
       <div class="su-stat"><span class="su-lbl">RN/TN/PN</span><span class="su-val">${cl.rn||0}/${cl.tn||0}/${cl.pn||0}</span></div>
     </div>
     <div class="su-card">
       <div class="su-card-h"><span class="su-ico">🔪</span><span class="su-nm">OR</span></div>
-      <div class="su-stat"><span class="su-lbl">เคสวันนี้</span><span class="su-val" style="color:var(--or)">${or_.done||0}</span></div>
-      <div class="su-stat"><span class="su-lbl">งด/ยกเลิก</span><span class="su-val" style="color:var(--red)">${or_.cancel||0}</span></div>
-      <div class="su-stat"><span class="su-lbl">ยกไป</span><span class="su-val">${or_.rem||0}</span></div>
+      <div class="su-stat"><span class="su-lbl">รวมทั้งหมด</span><span class="su-val" style="color:var(--or)">${orTotal}</span></div>
+      <div class="su-stat"><span class="su-lbl">📅 Elective</span><span class="su-val" style="color:var(--aft)">${orEl}</span></div>
+      <div class="su-stat"><span class="su-lbl">🚨 Emergency</span><span class="su-val" style="color:var(--red)">${orEm}</span></div>
+      <div class="su-stat"><span class="su-lbl">🚫 งดผ่าตัด</span><span class="su-val" style="color:var(--red)">${or_.cancel||0}</span></div>
       <div class="su-stat"><span class="su-lbl">RN/PN/NA</span><span class="su-val">${or_.rn||0}/${or_.pn||0}/${or_.na||0}</span></div>
     </div>
     <div class="su-card">
       <div class="su-card-h"><span class="su-ico">💉</span><span class="su-nm">วิสัญญี</span></div>
-      <div class="su-stat"><span class="su-lbl">พักฟื้น</span><span class="su-val" style="color:var(--ws)">${(ws.prev||0)+(ws.wait||0)}</span></div>
-      <div class="su-stat"><span class="su-lbl">ส่งกลับ</span><span class="su-val" style="color:var(--grn)">${ws.back||0}</span></div>
-      <div class="su-stat"><span class="su-lbl">คงอยู่</span><span class="su-val" style="color:var(--amb)">${Math.max(0,(ws.prev||0)+(ws.wait||0)-(ws.back||0))}</span></div>
+      <div class="su-stat"><span class="su-lbl">เคสรวม</span><span class="su-val" style="color:var(--ws)">${wsTotal}</span></div>
+      <div class="su-stat"><span class="su-lbl">GA/SB/MAC</span><span class="su-val">${ws.ga||0}/${ws.sb||0}/${ws.mac||0}</span></div>
+      <div class="su-stat"><span class="su-lbl">ASA 4-6 (high)</span><span class="su-val" style="color:var(--red)">${asaHigh} (${asaHighPct}%)</span></div>
+      <div class="su-stat"><span class="su-lbl">คงพักฟื้น</span><span class="su-val" style="color:var(--amb)">${Math.max(0,(ws.prev||0)+(ws.wait||0)-(ws.back||0))}</span></div>
       <div class="su-stat"><span class="su-lbl">RN/PN</span><span class="su-val">${ws.rn||0}/${(ws.pn||0)+(ws.na||0)}</span></div>
     </div>`;
 }
@@ -792,75 +891,287 @@ function buildSpecialEntryForm(){
 function buildEREntry(){
   const s=getSUData('ห้องฉุกเฉิน ER')||{};
   return `
-  <div class="f-sec"><div class="f-sec-h"><span>📊</span><span class="ft">ยอดบริการ ER</span></div><div class="f-sec-b">
-    <div class="ig2"><div class="fi"><label>ยอดรวม ER</label><input class="ni" type="number" min="0" id="er-total" value="${s.total||57}"></div>
-    <div class="fi"><label>ห้อง Observe</label><input class="ni" type="number" min="0" id="er-obs" value="${s.obs||11}"></div></div>
-  </div></div>
-  <div class="f-sec"><div class="f-sec-h"><span>📤</span><span class="ft">จำหน่าย / ส่งต่อ</span></div><div class="f-sec-b">
-    <div class="ig2"><div class="fi"><label>D/C บ้าน</label><input class="ni" type="number" min="0" id="er-dc" value="${s.dc||26}"></div>
-    <div class="fi"><label>Admit</label><input class="ni" type="number" min="0" id="er-adm" value="${s.admit||18}"></div>
-    <div class="fi"><label>Refer ออก</label><input class="ni" type="number" min="0" id="er-ref" value="${s.ref||0}"></div>
-    <div class="fi"><label>DEAD</label><input class="ni" type="number" min="0" id="er-dead" value="${s.dead||0}"></div></div>
-    <div class="ig2" style="margin-top:8px"><div class="fi"><label>ER คงค้าง</label><input class="ni" type="number" min="0" id="er-hold" value="${s.hold||13}"></div>
-    <div class="fi"><label>Obs คงค้าง</label><input class="ni" type="number" min="0" id="er-obsh" value="${s.obsh||0}"></div></div>
-  </div></div>
-  <div class="f-sec"><div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div><div class="f-sec-b">
-    <div class="ig4"><div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="er-rn" value="${s.rn||9}"></div>
-    <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="er-pn" value="${s.pn||2}"></div></div>
-  </div></div>`;
+  <div class="f-sec">
+    <div class="f-sec-h"><span>📊</span><span class="ft">ยอดบริการรวม</span></div>
+    <div class="f-sec-b">
+      <div class="ig2">
+        <div class="fi"><label>ยอดรวม ER</label><input class="ni" type="number" min="0" id="er-total" value="${s.total||0}" oninput="recalcER()"></div>
+        <div class="fi"><label>ห้อง Observe</label><input class="ni" type="number" min="0" id="er-obs" value="${s.obs||0}"></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>🚦</span><span class="ft">ความรุนแรง (Triage Level)</span></div>
+    <div class="f-sec-b">
+      <div class="ig3" style="margin-bottom:8px">
+        <div class="fi"><label style="color:#dc2626">🔴 Resus (L1)</label><input class="ni" type="number" min="0" id="er-l1" value="${s.l1||0}" oninput="recalcER()"></div>
+        <div class="fi"><label style="color:#ea580c">🟠 Emergency (L2)</label><input class="ni" type="number" min="0" id="er-l2" value="${s.l2||0}" oninput="recalcER()"></div>
+        <div class="fi"><label style="color:#ca8a04">🟡 Urgent (L3)</label><input class="ni" type="number" min="0" id="er-l3" value="${s.l3||0}" oninput="recalcER()"></div>
+      </div>
+      <div class="ig2">
+        <div class="fi"><label style="color:#16a34a">🟢 Semi-urgent (L4)</label><input class="ni" type="number" min="0" id="er-l4" value="${s.l4||0}" oninput="recalcER()"></div>
+        <div class="fi"><label style="color:#2563eb">🔵 Non-urgent (L5)</label><input class="ni" type="number" min="0" id="er-l5" value="${s.l5||0}" oninput="recalcER()"></div>
+      </div>
+      <div class="res-box" style="margin-top:9px">
+        <div class="rb"><div class="rv" id="er-triage-sum" style="color:var(--blue)">0</div><div class="rl">รวม Triage</div></div>
+        <div class="rb"><div class="rv" id="er-critical-pct" style="color:var(--red)">0%</div><div class="rl">วิกฤต (L1+L2)</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>🏥</span><span class="ft">ประเภทผู้ป่วย</span></div>
+    <div class="f-sec-b">
+      <div class="ig2" style="margin-bottom:8px">
+        <div class="fi"><label>อุบัติเหตุ</label><input class="ni" type="number" min="0" id="er-trauma" value="${s.trauma||0}"></div>
+        <div class="fi"><label>อายุรกรรม</label><input class="ni" type="number" min="0" id="er-med" value="${s.med||0}"></div>
+        <div class="fi"><label>ศัลยกรรม</label><input class="ni" type="number" min="0" id="er-surg" value="${s.surg||0}"></div>
+        <div class="fi"><label>กุมารเวช</label><input class="ni" type="number" min="0" id="er-ped" value="${s.ped||0}"></div>
+        <div class="fi"><label>สูติกรรม</label><input class="ni" type="number" min="0" id="er-ob" value="${s.ob||0}"></div>
+        <div class="fi"><label>จิตเวช</label><input class="ni" type="number" min="0" id="er-psych" value="${s.psych||0}"></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>📤</span><span class="ft">จำหน่าย / ส่งต่อ</span></div>
+    <div class="f-sec-b">
+      <div class="ig2">
+        <div class="fi"><label>D/C กลับบ้าน</label><input class="ni" type="number" min="0" id="er-dc" value="${s.dc||0}"></div>
+        <div class="fi"><label>Admit</label><input class="ni" type="number" min="0" id="er-adm" value="${s.admit||0}" oninput="recalcER()"></div>
+        <div class="fi"><label>Refer ออก</label><input class="ni" type="number" min="0" id="er-ref" value="${s.ref||0}"></div>
+        <div class="fi"><label>DEAD</label><input class="ni" type="number" min="0" id="er-dead" value="${s.dead||0}"></div>
+        <div class="fi"><label>ER คงค้าง</label><input class="ni" type="number" min="0" id="er-hold" value="${s.hold||0}"></div>
+        <div class="fi"><label>Obs คงค้าง</label><input class="ni" type="number" min="0" id="er-obsh" value="${s.obsh||0}"></div>
+      </div>
+      <div class="res-box" style="margin-top:9px">
+        <div class="rb"><div class="rv" id="er-admit-rate" style="color:var(--grn)">0%</div><div class="rl">Admit Rate</div></div>
+        <div class="rb"><div class="rv" id="er-total-disp" style="color:var(--blue)">0</div><div class="rl">บริการรวม</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div>
+    <div class="f-sec-b">
+      <div class="ig4">
+        <div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="er-rn" value="${s.rn||0}"></div>
+        <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="er-pn" value="${s.pn||0}"></div>
+      </div>
+    </div>
+  </div>`;
 }
+
+function recalcER(){
+  const total=iv('er-total');
+  const l1=iv('er-l1'),l2=iv('er-l2'),l3=iv('er-l3'),l4=iv('er-l4'),l5=iv('er-l5');
+  const admit=iv('er-adm');
+  const tsum=l1+l2+l3+l4+l5;
+  const critPct=tsum>0?Math.round(((l1+l2)/tsum)*100):0;
+  const admRate=total>0?Math.round((admit/total)*100):0;
+  const st=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+  st('er-triage-sum',tsum);
+  st('er-critical-pct',critPct+'%');
+  st('er-admit-rate',admRate+'%');
+  st('er-total-disp',total);
+}
+
 function buildCLEntry(){
   const s=getSUData('ห้องคลอด')||{};
   return `
-  <div class="f-sec"><div class="f-sec-h"><span>🤱</span><span class="ft">ห้องคลอด</span></div><div class="f-sec-b">
-    <div class="ig2"><div class="fi"><label>ยอดยกมา</label><input class="ni" type="number" min="0" id="cl-prev" value="${s.prev||0}"></div>
-    <div class="fi"><label>คลอด/ผิดปกติ</label><input class="ni" type="number" min="0" id="cl-abn" value="${s.abn||0}"></div>
-    <div class="fi"><label>ผ่าตัดคลอด C/S</label><input class="ni" type="number" min="0" id="cl-cs" value="${s.cs||1}"></div>
-    <div class="fi"><label>OPD Case</label><input class="ni" type="number" min="0" id="cl-opd" value="${s.opd||1}"></div>
-    <div class="fi"><label>รอคลอด บ้าน</label><input class="ni" type="number" min="0" id="cl-wh" value="${s.wh||0}"></div>
-    <div class="fi"><label>รอคลอด รพ.</label><input class="ni" type="number" min="0" id="cl-wr" value="${s.wr||1}"></div>
-    <div class="fi"><label>Refer ออก</label><input class="ni" type="number" min="0" id="cl-ref" value="${s.ref||1}"></div>
-    <div class="fi"><label>ย้ายหอ</label><input class="ni" type="number" min="0" id="cl-tr" value="${s.tr||0}"></div></div>
-  </div></div>
-  <div class="f-sec"><div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div><div class="f-sec-b">
-    <div class="ig4"><div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="cl-rn" value="${s.rn||3}"></div>
-    <div class="fi"><label>TN</label><input class="ni" type="number" min="0" id="cl-tn" value="${s.tn||0}"></div>
-    <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="cl-pn" value="${s.pn||1}"></div></div>
-  </div></div>`;
+  <div class="f-sec">
+    <div class="f-sec-h"><span>🤱</span><span class="ft">ยอดผู้คลอด</span></div>
+    <div class="f-sec-b">
+      <div class="ig2">
+        <div class="fi"><label>ยอดยกมา</label><input class="ni" type="number" min="0" id="cl-prev" value="${s.prev||0}"></div>
+        <div class="fi"><label>รอคลอด (รพ.)</label><input class="ni" type="number" min="0" id="cl-wr" value="${s.wr||0}"></div>
+        <div class="fi"><label>คลอดปกติ</label><input class="ni" type="number" min="0" id="cl-normal" value="${s.normal||0}" oninput="recalcCL()"></div>
+        <div class="fi"><label>คลอดผิดปกติ</label><input class="ni" type="number" min="0" id="cl-abn" value="${s.abn||0}" oninput="recalcCL()"></div>
+        <div class="fi"><label>ผ่าตัดคลอด C/S</label><input class="ni" type="number" min="0" id="cl-cs" value="${s.cs||0}" oninput="recalcCL()"></div>
+        <div class="fi"><label>OPD Case</label><input class="ni" type="number" min="0" id="cl-opd" value="${s.opd||0}"></div>
+      </div>
+      <div class="res-box" style="margin-top:9px">
+        <div class="rb"><div class="rv ok" id="cl-birth-total">0</div><div class="rl">คลอดรวม</div></div>
+        <div class="rb"><div class="rv" id="cl-cs-pct" style="color:var(--amb)">0%</div><div class="rl">% C/S</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>📤</span><span class="ft">ส่งต่อ / จำหน่าย</span></div>
+    <div class="f-sec-b">
+      <div class="ig2">
+        <div class="fi"><label>Refer ออก</label><input class="ni" type="number" min="0" id="cl-ref" value="${s.ref||0}"></div>
+        <div class="fi"><label>ย้ายหอ</label><input class="ni" type="number" min="0" id="cl-tr" value="${s.tr||0}"></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div>
+    <div class="f-sec-b">
+      <div class="ig4">
+        <div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="cl-rn" value="${s.rn||0}"></div>
+        <div class="fi"><label>TN</label><input class="ni" type="number" min="0" id="cl-tn" value="${s.tn||0}"></div>
+        <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="cl-pn" value="${s.pn||0}"></div>
+      </div>
+    </div>
+  </div>`;
 }
+
+function recalcCL(){
+  const normal=iv('cl-normal'),abn=iv('cl-abn'),cs=iv('cl-cs');
+  const total=normal+abn+cs;
+  const csPct=total>0?Math.round((cs/total)*100):0;
+  const st=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+  st('cl-birth-total',total);
+  st('cl-cs-pct',csPct+'%');
+}
+
 function buildOREntry(){
   const s=getSUData('ห้องผ่าตัด OR')||{};
   return `
-  <div class="f-sec"><div class="f-sec-h"><span>🔪</span><span class="ft">ห้องผ่าตัด OR</span></div><div class="f-sec-b">
-    <div class="ig2"><div class="fi"><label>ยอดยกมา</label><input class="ni" type="number" min="0" id="or-prev" value="${s.prev||2}"></div>
-    <div class="fi"><label>ส่งจากเวร</label><input class="ni" type="number" min="0" id="or-sent" value="${s.sent||8}"></div>
-    <div class="fi"><label>Set ทั้งวัน</label><input class="ni" type="number" min="0" id="or-set" value="${s.set||5}"></div>
-    <div class="fi"><label>เสร็จแล้ว</label><input class="ni" type="number" min="0" id="or-done" value="${s.done||913}"></div>
-    <div class="fi"><label>งด/ยกเลิก</label><input class="ni" type="number" min="0" id="or-cancel" value="${s.cancel||0}"></div>
-    <div class="fi"><label>ยอดยกไป</label><input class="ni" type="number" min="0" id="or-rem" value="${s.rem||2}"></div></div>
-  </div></div>
-  <div class="f-sec"><div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div><div class="f-sec-b">
-    <div class="ig4"><div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="or-rn" value="${s.rn||4}"></div>
-    <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="or-pn" value="${s.pn||1}"></div>
-    <div class="fi"><label>NA</label><input class="ni" type="number" min="0" id="or-na" value="${s.na||2}"></div>
-    <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="or-aid" value="${s.aid||2}"></div></div>
-  </div></div>`;
+  <div class="f-sec">
+    <div class="f-sec-h"><span>🔪</span><span class="ft">ยอดเคสตามความเร่งด่วน</span></div>
+    <div class="f-sec-b">
+      <div class="ig3" style="margin-bottom:10px">
+        <div style="background:rgba(29,78,216,.06);border:1.5px solid #bfdbfe;border-radius:8px;padding:11px;text-align:center">
+          <div style="font-size:10px;font-weight:700;color:var(--aft);text-transform:uppercase;margin-bottom:6px">📅 Elective</div>
+          <input class="ni" type="number" min="0" id="or-elective" value="${s.elective||0}" oninput="recalcOR()" style="font-size:26px">
+          <div style="font-size:10px;color:var(--mut);margin-top:4px">เคส</div>
+        </div>
+        <div style="background:rgba(185,28,28,.06);border:1.5px solid #fca5a5;border-radius:8px;padding:11px;text-align:center">
+          <div style="font-size:10px;font-weight:700;color:var(--red);text-transform:uppercase;margin-bottom:6px">🚨 Emergency</div>
+          <input class="ni" type="number" min="0" id="or-emergency" value="${s.emergency||0}" oninput="recalcOR()" style="font-size:26px">
+          <div style="font-size:10px;color:var(--mut);margin-top:4px">เคส</div>
+        </div>
+        <div style="background:rgba(180,83,9,.06);border:1.5px solid #fed7aa;border-radius:8px;padding:11px;text-align:center">
+          <div style="font-size:10px;font-weight:700;color:var(--amb);text-transform:uppercase;margin-bottom:6px">🚫 งดผ่าตัด</div>
+          <input class="ni" type="number" min="0" id="or-cancel" value="${s.cancel||0}" oninput="recalcOR()" style="font-size:26px">
+          <div style="font-size:10px;color:var(--mut);margin-top:4px">เคส</div>
+        </div>
+      </div>
+      <div class="res-box">
+        <div class="rb"><div class="rv" id="or-el-total" style="color:var(--aft)">0</div><div class="rl">Elective</div></div>
+        <div class="rb"><div class="rv" id="or-em-total" style="color:var(--red)">0</div><div class="rl">Emergency</div></div>
+        <div class="rb"><div class="rv ok" id="or-grand-total">0</div><div class="rl">รวมทั้งหมด</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="f-sec">
+    <div class="f-sec-h"><span>📋</span><span class="ft">แยกย่อยตามขนาด / ประเภท</span></div>
+    <div class="f-sec-b">
+      <div class="ig2" style="margin-bottom:6px">
+        <div class="fi"><label>ผ่าตัดซับซ้อน</label><input class="ni" type="number" min="0" id="or-complex" value="${s.complex||0}"></div>
+        <div class="fi"><label>ผ่าตัดใหญ่</label><input class="ni" type="number" min="0" id="or-major" value="${s.major||0}"></div>
+        <div class="fi"><label>ผ่าตัดเล็ก</label><input class="ni" type="number" min="0" id="or-minor" value="${s.minor||0}"></div>
+        <div class="fi"><label>เคสหัตถการ</label><input class="ni" type="number" min="0" id="or-proc" value="${s.proc||0}"></div>
+      </div>
+      <div style="font-size:11px;color:var(--mut);padding:7px 10px;background:var(--surf2);border-radius:7px;border:1px solid var(--brd)">
+        💡 กรอกเพื่อข้อมูลเพิ่มเติม — ไม่ต้องรวมกับ Elective/Emergency
+      </div>
+    </div>
+  </div>
+
+  <div class="f-sec">
+    <div class="f-sec-h"><span>📋</span><span class="ft">ยอดยกไป</span></div>
+    <div class="f-sec-b">
+      <div class="ig2">
+        <div class="fi"><label>ยอดยกไป</label><input class="ni" type="number" min="0" id="or-rem" value="${s.rem||0}"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="f-sec">
+    <div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div>
+    <div class="f-sec-b">
+      <div class="ig4">
+        <div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="or-rn" value="${s.rn||0}"></div>
+        <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="or-pn" value="${s.pn||0}"></div>
+        <div class="fi"><label>NA</label><input class="ni" type="number" min="0" id="or-na" value="${s.na||0}"></div>
+        <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="or-aid" value="${s.aid||0}"></div>
+      </div>
+    </div>
+  </div>`;
 }
+
+function recalcOR(){
+  const el=iv('or-elective'), em=iv('or-emergency');
+  const st=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+  st('or-el-total',el); st('or-em-total',em); st('or-grand-total',el+em);
+}
+
 function buildWSEntry(){
   const s=getSUData('งานวิสัญญี')||{};
   return `
-  <div class="f-sec"><div class="f-sec-h"><span>💉</span><span class="ft">งานวิสัญญี</span></div><div class="f-sec-b">
-    <div class="ig2"><div class="fi"><label>ยอดยกมา</label><input class="ni" type="number" min="0" id="ws-prev" value="${s.prev||2}"></div>
-    <div class="fi"><label>รอพักฟื้น</label><input class="ni" type="number" min="0" id="ws-wait" value="${s.wait||4}"></div>
-    <div class="fi"><label>ส่งกลับตึก</label><input class="ni" type="number" min="0" id="ws-back" value="${s.back||6}"></div>
-    <div class="fi"><label>ยอดยกไป</label><input class="ni" type="number" min="0" id="ws-rem" value="${s.rem||0}"></div></div>
-  </div></div>
-  <div class="f-sec"><div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div><div class="f-sec-b">
-    <div class="ig4"><div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="ws-rn" value="${s.rn||3}"></div>
-    <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="ws-pn" value="${s.pn||0}"></div>
-    <div class="fi"><label>NA</label><input class="ni" type="number" min="0" id="ws-na" value="${s.na||0}"></div>
-    <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="ws-aid" value="${s.aid||2}"></div></div>
-  </div></div>`;
+  <div class="f-sec">
+    <div class="f-sec-h"><span>💉</span><span class="ft">จำนวนเคสและประเภทการระงับความรู้สึก</span></div>
+    <div class="f-sec-b">
+      <div class="ig3" style="margin-bottom:8px">
+        <div class="fi"><label>GA (ดมยา)</label><input class="ni" type="number" min="0" id="ws-ga" value="${s.ga||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label>SB (ฉีดยาชาไขสันหลัง)</label><input class="ni" type="number" min="0" id="ws-sb" value="${s.sb||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label>MAC (ประคับประคอง)</label><input class="ni" type="number" min="0" id="ws-mac" value="${s.mac||0}" oninput="recalcWS()"></div>
+      </div>
+      <div class="res-box" style="margin-bottom:10px">
+        <div class="rb"><div class="rv ok" id="ws-case-total">0</div><div class="rl">เคสรวม</div></div>
+        <div class="rb"><div class="rv" id="ws-back-disp" style="color:var(--grn)">0</div><div class="rl">ส่งกลับตึก</div></div>
+        <div class="rb"><div class="rv" id="ws-remain-disp" style="color:var(--amb)">0</div><div class="rl">คงในพักฟื้น</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>🏷️</span><span class="ft">ASA Physical Status</span></div>
+    <div class="f-sec-b">
+      <div class="ig3" style="margin-bottom:8px">
+        <div class="fi"><label style="color:#16a34a">ASA 1 (ปกติ)</label><input class="ni" type="number" min="0" id="ws-asa1" value="${s.asa1||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label style="color:#2563eb">ASA 2 (โรคเล็กน้อย)</label><input class="ni" type="number" min="0" id="ws-asa2" value="${s.asa2||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label style="color:#ca8a04">ASA 3 (โรคปานกลาง)</label><input class="ni" type="number" min="0" id="ws-asa3" value="${s.asa3||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label style="color:#ea580c">ASA 4 (โรครุนแรง)</label><input class="ni" type="number" min="0" id="ws-asa4" value="${s.asa4||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label style="color:#dc2626">ASA 5 (วิกฤต)</label><input class="ni" type="number" min="0" id="ws-asa5" value="${s.asa5||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label style="color:#7f1d1d">ASA 6 (สมองตาย)</label><input class="ni" type="number" min="0" id="ws-asa6" value="${s.asa6||0}" oninput="recalcWS()"></div>
+      </div>
+      <div class="res-box">
+        <div class="rb"><div class="rv" id="ws-asa-total" style="color:var(--blue)">0</div><div class="rl">ASA รวม</div></div>
+        <div class="rb"><div class="rv" id="ws-high-risk-pct" style="color:var(--red)">0%</div><div class="rl">ASA 4-6 (high risk)</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>🛏</span><span class="ft">ยอดพักฟื้น</span></div>
+    <div class="f-sec-b">
+      <div class="ig2">
+        <div class="fi"><label>ยอดยกมา</label><input class="ni" type="number" min="0" id="ws-prev" value="${s.prev||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label>รอพักฟื้น</label><input class="ni" type="number" min="0" id="ws-wait" value="${s.wait||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label>ส่งกลับตึก</label><input class="ni" type="number" min="0" id="ws-back" value="${s.back||0}" oninput="recalcWS()"></div>
+        <div class="fi"><label>ยอดยกไป</label><input class="ni" type="number" min="0" id="ws-rem" value="${s.rem||0}"></div>
+      </div>
+    </div>
+  </div>
+  <div class="f-sec">
+    <div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div>
+    <div class="f-sec-b">
+      <div class="ig4">
+        <div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="ws-rn" value="${s.rn||0}"></div>
+        <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="ws-pn" value="${s.pn||0}"></div>
+        <div class="fi"><label>NA</label><input class="ni" type="number" min="0" id="ws-na" value="${s.na||0}"></div>
+        <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="ws-aid" value="${s.aid||0}"></div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function recalcWS(){
+  const ga=iv('ws-ga'),sb=iv('ws-sb'),mac=iv('ws-mac');
+  const asa1=iv('ws-asa1'),asa2=iv('ws-asa2'),asa3=iv('ws-asa3');
+  const asa4=iv('ws-asa4'),asa5=iv('ws-asa5'),asa6=iv('ws-asa6');
+  const prev=iv('ws-prev'),wait=iv('ws-wait'),back=iv('ws-back');
+  const caseTotal=ga+sb+mac;
+  const asaTotal=asa1+asa2+asa3+asa4+asa5+asa6;
+  const highRisk=asa4+asa5+asa6;
+  const highPct=asaTotal>0?Math.round((highRisk/asaTotal)*100):0;
+  const remain=Math.max(0,prev+wait-back);
+  const st=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+  st('ws-case-total',caseTotal);
+  st('ws-back-disp',back);
+  st('ws-remain-disp',remain);
+  st('ws-asa-total',asaTotal);
+  st('ws-high-risk-pct',highPct+'%');
 }
 
 // ═══ SAVE ═══
@@ -876,10 +1187,24 @@ function collectSU(){
   if(!curWard||!curWard.isSpecial)return null;
   const n=curWard.name; const g=id=>{const e=$(id);return e?parseInt(e.value)||0:0;};
   const base={ward:n,shift:curShift,date:new Date().toLocaleDateString('th-TH')};
-  if(n==='ห้องฉุกเฉิน ER')return{...base,total:g('er-total'),obs:g('er-obs'),dc:g('er-dc'),admit:g('er-adm'),ref:g('er-ref'),dead:g('er-dead'),hold:g('er-hold'),obsh:g('er-obsh'),rn:g('er-rn'),pn:g('er-pn')};
-  if(n==='ห้องคลอด')return{...base,prev:g('cl-prev'),abn:g('cl-abn'),cs:g('cl-cs'),opd:g('cl-opd'),wh:g('cl-wh'),wr:g('cl-wr'),ref:g('cl-ref'),tr:g('cl-tr'),rn:g('cl-rn'),tn:g('cl-tn'),pn:g('cl-pn')};
-  if(n==='ห้องผ่าตัด OR')return{...base,prev:g('or-prev'),sent:g('or-sent'),set:g('or-set'),done:g('or-done'),cancel:g('or-cancel'),rem:g('or-rem'),rn:g('or-rn'),pn:g('or-pn'),na:g('or-na'),aid:g('or-aid')};
-  if(n==='งานวิสัญญี')return{...base,prev:g('ws-prev'),wait:g('ws-wait'),back:g('ws-back'),rem:g('ws-rem'),rn:g('ws-rn'),pn:g('ws-pn'),na:g('ws-na'),aid:g('ws-aid')};
+  if(n==='ห้องฉุกเฉิน ER')return{...base,
+    total:g('er-total'),obs:g('er-obs'),
+    l1:g('er-l1'),l2:g('er-l2'),l3:g('er-l3'),l4:g('er-l4'),l5:g('er-l5'),
+    trauma:g('er-trauma'),med:g('er-med'),surg:g('er-surg'),ped:g('er-ped'),ob:g('er-ob'),psych:g('er-psych'),
+    dc:g('er-dc'),admit:g('er-adm'),ref:g('er-ref'),dead:g('er-dead'),hold:g('er-hold'),obsh:g('er-obsh'),
+    rn:g('er-rn'),pn:g('er-pn')};
+  if(n==='ห้องคลอด')return{...base,
+    prev:g('cl-prev'),normal:g('cl-normal'),abn:g('cl-abn'),cs:g('cl-cs'),opd:g('cl-opd'),wr:g('cl-wr'),
+    ref:g('cl-ref'),tr:g('cl-tr'),rn:g('cl-rn'),tn:g('cl-tn'),pn:g('cl-pn')};
+  if(n==='ห้องผ่าตัด OR')return{...base,
+    elective:g('or-elective'),emergency:g('or-emergency'),cancel:g('or-cancel'),rem:g('or-rem'),
+    complex:g('or-complex'),major:g('or-major'),minor:g('or-minor'),proc:g('or-proc'),
+    rn:g('or-rn'),pn:g('or-pn'),na:g('or-na'),aid:g('or-aid')};
+  if(n==='งานวิสัญญี')return{...base,
+    ga:g('ws-ga'),sb:g('ws-sb'),mac:g('ws-mac'),
+    asa1:g('ws-asa1'),asa2:g('ws-asa2'),asa3:g('ws-asa3'),asa4:g('ws-asa4'),asa5:g('ws-asa5'),asa6:g('ws-asa6'),
+    prev:g('ws-prev'),wait:g('ws-wait'),back:g('ws-back'),rem:g('ws-rem'),
+    rn:g('ws-rn'),pn:g('ws-pn'),na:g('ws-na'),aid:g('ws-aid')};
   return base;
 }
 
@@ -937,6 +1262,258 @@ async function sendToSheet(){
   }catch{showToast('❌ ส่งไม่สำเร็จ ตรวจสอบ URL','err');}
 }
 
+// ═══ OPD DATA ═══
+
+// ── OPD mode tracker ──
+let curOpd = null;
+
+function buildOpdSelector(){
+  const grid = $('opdSelGrid'); if(!grid) return;
+  const saved = getOpdData();
+  grid.innerHTML = OPD_CLINICS.map(c => {
+    const d = saved[c.id]||{};
+    const hasSave = (d.pt||0)>0 || (d.rn||0)>0;
+    return `<button class="ward-btn" onclick="selectOpd('${c.id}')">
+      ${hasSave?'✅ ':''}${c.icon} ${c.name}
+      <div class="wb-dept">${hasSave?'ผู้ป่วย '+(d.pt||0)+' ราย':'ยังไม่ได้กรอก'}</div>
+    </button>`;
+  }).join('');
+}
+
+function selectOpd(id){
+  const clinic = OPD_CLINICS.find(c=>c.id===id);
+  if(!clinic) return;
+  curOpd = clinic;
+  setT('opd-ef-name', clinic.icon+' '+clinic.name);
+  setT('opd-ef-sub', 'ผู้ป่วยนอก');
+  $('opdSelector').style.display = 'none';
+  $('opdEntryForm').classList.add('on');
+  $('botActions').classList.remove('hidden');
+  buildOpdClinicForm(clinic);
+}
+
+function backToOpdSelector(){
+  curOpd = null;
+  $('opdSelector').style.display = '';
+  $('opdEntryForm').classList.remove('on');
+  $('botActions').classList.add('hidden');
+  buildOpdSelector();
+}
+
+function buildOpdClinicForm(clinic){
+  const saved = getOpdData();
+  const d = saved[clinic.id]||{};
+  const pt=d.pt||0, rn=d.rn||0, tn=d.tn||0, pn=d.pn||0, other=d.other||0;
+  const total=rn+tn+pn+other;
+  const ratio=rn>0?(pt/rn).toFixed(1):'—';
+
+  $('opdEfBody').innerHTML=`
+  <div class="mini-kpi3">
+    <div class="mk mk-b"><div class="mv" id="opd-mk-pt">${pt}</div><div class="ml">ผู้ป่วย</div></div>
+    <div class="mk mk-g"><div class="mv" id="opd-mk-rn">${rn}</div><div class="ml">RN</div></div>
+    <div class="mk mk-a"><div class="mv" id="opd-mk-ratio">${rn>0?'1:'+ratio:'—'}</div><div class="ml">ผู้ป่วย:RN</div></div>
+  </div>
+
+  <div class="f-sec">
+    <div class="f-sec-h"><span>📊</span><span class="ft">ยอดผู้ป่วย OPD</span></div>
+    <div class="f-sec-b">
+      <div class="ig2" style="margin-bottom:10px">
+        <div class="fi"><label>ผู้ป่วยนัด (Appointment)</label>
+          <input class="ni" type="number" min="0" id="opd-appt" value="${d.appt||0}" oninput="recalcOpdForm()"></div>
+        <div class="fi"><label>Walk-in</label>
+          <input class="ni" type="number" min="0" id="opd-walkin" value="${d.walkin||0}" oninput="recalcOpdForm()"></div>
+      </div>
+      <div class="res-box">
+        <div class="rb"><div class="rv ok" id="opd-rv-total">${pt}</div><div class="rl">ผู้ป่วยรวม</div></div>
+        <div class="rb"><div class="rv" id="opd-rv-ratio" style="color:var(--blue)">${rn>0?'1:'+ratio:'—'}</div><div class="rl">สัดส่วน ผู้ป่วย:RN</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="f-sec">
+    <div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div>
+    <div class="f-sec-b">
+      <div class="ig4">
+        <div class="fi"><label>RN</label>
+          <input class="ni" type="number" min="0" id="opd-rn" value="${rn}" oninput="recalcOpdForm()"></div>
+        <div class="fi"><label>TN</label>
+          <input class="ni" type="number" min="0" id="opd-tn" value="${tn}" oninput="recalcOpdForm()"></div>
+        <div class="fi"><label>PN/NA</label>
+          <input class="ni" type="number" min="0" id="opd-pn" value="${pn}" oninput="recalcOpdForm()"></div>
+        <div class="fi"><label>เจ้าหน้าที่</label>
+          <input class="ni" type="number" min="0" id="opd-other" value="${other}" oninput="recalcOpdForm()"></div>
+      </div>
+      <div class="res-box" style="margin-top:9px">
+        <div class="rb"><div class="rv ok" id="opd-rv-rn">${rn}</div><div class="rl">RN</div></div>
+        <div class="rb"><div class="rv" id="opd-rv-staff" style="color:var(--blue)">${total}</div><div class="rl">รวม จนท.</div></div>
+        <div class="rb"><div class="rv" id="opd-rv-ratio2" style="color:var(--mut)">${rn>0?'1:'+ratio:'—'}</div><div class="rl">ผู้ป่วย:RN</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="f-sec">
+    <div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div>
+    <div class="f-sec-b">
+      <textarea id="opd-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)">${d.note||''}</textarea>
+    </div>
+  </div>`;
+}
+
+function recalcOpdForm(){ recalcOpdLive(); }
+
+function collectOpdClinic(){
+  if(!curOpd) return null;
+  const appt=iv('opd-appt'), walkin=iv('opd-walkin');
+  return {
+    pt: appt+walkin, appt, walkin,
+    rn: iv('opd-rn'), tn: iv('opd-tn'), pn: iv('opd-pn'), other: iv('opd-other'),
+    note: $('opd-note')?.value||''
+  };
+}
+
+function saveOPD(){
+  if(!curOpd){ showToast('กรุณาเลือกคลินิกก่อน','err'); return; }
+  const all = getOpdData();
+  all[curOpd.id] = collectOpdClinic();
+  // recalc pt from appt+walkin
+  all[curOpd.id].pt = (all[curOpd.id].appt||0)+(all[curOpd.id].walkin||0);
+  lsS(`opd_${tk()}`, all);
+  buildAll();
+  buildOpdSelector();
+  showToast(`✓ บันทึก ${curOpd.name} สำเร็จ`,'ok');
+}
+
+async function sendOpdToSheet(){
+  const url=gsUrl();
+  if(!url){showToast('⚠️ ยังไม่ได้ตั้งค่า Google Sheet','err');return;}
+  if(!curOpd){showToast('กรุณาเลือกคลินิกก่อน','err');return;}
+  const d = collectOpdClinic();
+  const today=new Date().toLocaleDateString('th-TH');
+  const now=new Date().toLocaleTimeString('th-TH');
+  const rows=[[today,now,curOpd.name,d.pt,d.appt,d.walkin,d.rn,d.tn,d.pn,d.other,(d.rn+d.tn+d.pn+d.other),d.note]];
+  showToast('⏳ กำลังส่ง...','ok');
+  try{
+    await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify({
+      sheet:'opd_census',
+      headers:['วันที่','เวลา','คลินิก','ผู้ป่วยรวม','นัด','Walk-in','RN','TN','PN/NA','เจ้าหน้าที่','รวมบุคลากร','หมายเหตุ'],
+      rows
+    })});
+    showToast(`✓ ส่งข้อมูล ${curOpd.name} เข้า Sheet สำเร็จ`,'ok');
+  }catch{showToast('❌ ส่งไม่สำเร็จ','err');}
+}
+
+// ── dispatcher: save/send ──
+function handleSave(){
+  if(curPage==='opd') saveOPD();
+  else saveEntry();
+}
+function handleSendSheet(){
+  if(curPage==='opd') sendOpdToSheet();
+  else sendToSheet();
+}
+
+function recalcOPD(){
+  let totalPt=0,totalStaff=0;
+  const saved=getOpdData();
+  OPD_CLINICS.forEach(c=>{
+    const d=saved[c.id]||{};
+    totalPt+=(d.pt||0);
+    totalStaff+=(d.rn||0)+(d.tn||0)+(d.pn||0)+(d.other||0);
+  });
+  setT('opd-kv-total',totalPt||'—');
+  setT('opd-kv-staff',totalStaff||'—');
+  buildOpdStaffList('opdStaffList');
+  buildOpdStaffList('opdStaffListPage');
+  buildDbOpdSummary();
+}
+
+// update KPI strip from form inputs (real-time while typing)
+function recalcOpdLive(){
+  const appt=iv('opd-appt'),walkin=iv('opd-walkin');
+  const rn=iv('opd-rn'),tn=iv('opd-tn'),pn=iv('opd-pn'),other=iv('opd-other');
+  const pt=appt+walkin;
+  const total=rn+tn+pn+other;
+  const ratio=rn>0?(pt/rn).toFixed(1):'—';
+  const st=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
+  st('opd-mk-pt',pt);st('opd-mk-rn',rn);st('opd-mk-ratio',rn>0?'1:'+ratio:'—');
+  st('opd-rv-total',pt);st('opd-rv-ratio',rn>0?'1:'+ratio:'—');
+  st('opd-rv-rn',rn);st('opd-rv-staff',total);st('opd-rv-ratio2',rn>0?'1:'+ratio:'—');
+}
+
+function buildOpdChart(){
+  const el=$('opdChart');if(!el)return;
+  const saved=getOpdData();
+  const maxPt=Math.max(...OPD_CLINICS.map(c=>(saved[c.id]||{}).pt||0),1);
+  setT('opd-date-badge',new Date().toLocaleDateString('th-TH'));
+  el.innerHTML=OPD_CLINICS.map(c=>{
+    const d=saved[c.id]||{};const pt=d.pt||0;
+    const pct=Math.round((pt/maxPt)*100);
+    const staff=(d.rn||0)+(d.pn||0)+(d.other||0);
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">
+      <span style="font-size:14px;min-width:22px">${c.icon}</span>
+      <div style="min-width:90px;font-size:11px;font-weight:600">${c.name.replace('OPD ','')}</div>
+      <div style="flex:1;height:22px;background:var(--surf3);border-radius:5px;overflow:hidden;border:1px solid var(--brd)">
+        <div style="height:100%;width:${pct}%;background:${c.color};border-radius:5px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;min-width:${pt>0?'28px':'0'};transition:width .5s">
+          ${pt>0?`<span style="font-size:10px;font-weight:700;color:#fff">${pt}</span>`:''}
+        </div>
+      </div>
+      <span style="font-size:12px;font-weight:800;color:${c.color};min-width:28px;text-align:right">${pt||'—'}</span>
+      <span style="font-size:10px;color:var(--mut);min-width:36px;text-align:right">${staff>0?staff+' คน':'—'}</span>
+    </div>`;
+  }).join('');
+}
+
+function buildOpdStaffList(elId){
+  const el=$(elId);if(!el)return;
+  const saved=getOpdData();
+  el.innerHTML=OPD_CLINICS.map(c=>{
+    const d=saved[c.id]||{};const pt=d.pt||0;const rn=d.rn||0;
+    const total=rn+(d.pn||0)+(d.other||0);
+    const ratio=rn>0?(pt/rn).toFixed(1):'—';
+    const cls=ratio==='—'?'p-ok':ratio>10?'p-d':ratio>7?'p-w':'p-ok';
+    const lbl=ratio==='—'?'—':ratio>10?'ตึงตัว':ratio>7?'ระวัง':'OK';
+    return `<div class="sf-row">
+      <span style="font-size:15px">${c.icon}</span>
+      <span class="sf-name">${c.name}</span>
+      <span class="sf-c">${pt||'—'}</span>
+      <span class="sf-rn">RN ${rn}</span>
+      <span class="sf-ratio">${total} คน</span>
+      <span class="sf-pill ${cls}">${lbl}</span>
+    </div>`;
+  }).join('');
+}
+
+function buildDbOpdSummary(){
+  const el=$('dbOpdSummary');if(!el)return;
+  const saved=getOpdData();
+  let totalPt=0,totalStaff=0,activeClinics=0;
+  OPD_CLINICS.forEach(c=>{
+    const d=saved[c.id]||{};
+    totalPt+=d.pt||0;totalStaff+=(d.rn||0)+(d.pn||0)+(d.other||0);
+    if((d.pt||0)>0)activeClinics++;
+  });
+  setT('db-opd-ct',activeClinics+' คลินิก');
+  const topC=OPD_CLINICS.map(c=>({...c,pt:(saved[c.id]||{}).pt||0})).filter(c=>c.pt>0).sort((a,b)=>b.pt-a.pt).slice(0,5);
+  const maxPt=topC.length>0?topC[0].pt:1;
+  el.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+      <div class="kc kt" style="margin:0"><div class="kl">รวม OPD</div><div class="kn">${totalPt||'—'}</div></div>
+      <div class="kc kg" style="margin:0"><div class="kl">บุคลากร</div><div class="kn">${totalStaff||'—'}</div></div>
+      <div class="kc" style="margin:0"><div class="kl">เปิด</div><div class="kn">${activeClinics}</div><div class="ks">คลินิก</div></div>
+    </div>
+    ${topC.length===0
+      ?'<div style="text-align:center;color:var(--mut);font-size:13px;padding:12px">ยังไม่มีข้อมูล OPD วันนี้</div>'
+      :topC.map(c=>`<div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+        <span style="font-size:13px">${c.icon}</span>
+        <div style="min-width:80px;font-size:11px;font-weight:600">${c.name.replace('OPD ','')}</div>
+        <div style="flex:1;height:16px;background:var(--surf3);border-radius:4px;overflow:hidden;border:1px solid var(--brd)">
+          <div style="height:100%;width:${Math.round((c.pt/maxPt)*100)}%;background:${c.color};border-radius:4px"></div>
+        </div>
+        <span style="font-size:12px;font-weight:800;color:${c.color};min-width:28px;text-align:right">${c.pt}</span>
+      </div>`).join('')
+    }`;
+}
+
 // ═══ CLEAR DATA ═══
 function clearTodayData(){
   if(!confirm('ล้างข้อมูลทั้งหมดของวันนี้?\nไม่สามารถกู้คืนได้')) return;
@@ -958,8 +1535,13 @@ function startAutoRefresh(){
   if(refreshInterval)clearInterval(refreshInterval);
   refreshInterval=setInterval(()=>{
     buildAll();
-    if(curPage==='entry')buildWardSelector();
-  },30000); // 30 วินาที
+    buildOpdChart();
+    buildOpdStaffList('opdStaffList');
+    buildOpdStaffList('opdStaffListPage');
+    buildDbOpdSummary();
+    if(curPage==='entry') buildWardSelector();
+    if(curPage==='opd' && !curOpd) buildOpdSelector();
+  },30000);
 }
 
 // ═══ INIT ═══
@@ -971,6 +1553,11 @@ function startAutoRefresh(){
   updateGsChip();
   buildAll();
   buildWardSelector();
+  buildOpdSelector();
+  buildOpdChart();
+  buildOpdStaffList('opdStaffList');
+  buildOpdStaffList('opdStaffListPage');
+  buildDbOpdSummary();
   startAutoRefresh();
 })();
 </script>
