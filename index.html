@@ -244,6 +244,9 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
       <div class="gs-chip" id="gsChip" onclick="openGsModal()">
         <span id="gsIco">📋</span><span id="gsLbl">Sheet</span>
       </div>
+      <div class="gs-chip" onclick="refreshDashboardFromSheet()" title="โหลดข้อมูลทุกหอจาก Sheet" style="color:#6ee7b7;border-color:rgba(52,211,153,.3)">
+        🔄
+      </div>
       <div class="gs-chip" onclick="clearTodayData()" style="color:#fca5a5;border-color:rgba(239,68,68,.25);background:rgba(239,68,68,.08)">
         🗑
       </div>
@@ -427,7 +430,11 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
     <details style="margin-bottom:10px"><summary style="font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;padding:4px 0">📋 คัดลอกโค้ด Apps Script</summary>
     <div class="script-box">function doPost(e) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const d  = JSON.parse(e.postData.contents);
+  let body = e.postData ? e.postData.contents : '';
+  // รองรับ GET fallback ที่ส่ง payload ใน query string
+  if (!body && e.parameter && e.parameter.payload)
+    body = decodeURIComponent(e.parameter.payload);
+  const d = JSON.parse(body);
   let sh = ss.getSheetByName(d.sheet);
   if (!sh) {
     sh = ss.insertSheet(d.sheet);
@@ -440,8 +447,36 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
     .createTextOutput(JSON.stringify({ok:true}))
     .setMimeType(ContentService.MimeType.JSON);
 }
+
 function doGet(e) {
-  return ContentService.createTextOutput('API OK');
+  const p = e.parameter;
+  // รองรับ POST ผ่าน GET (มือถือ fallback)
+  if (p.payload) return doPost(e);
+  
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = p.sheet  || 'ward_census';
+  const date  = p.date   || '';
+  const month = p.month  || '';
+  const sh = ss.getSheetByName(sheet);
+  if (!sh) return ContentService
+    .createTextOutput(JSON.stringify({ok:false,rows:[]}))
+    .setMimeType(ContentService.MimeType.JSON);
+  const data = sh.getDataRange().getValues();
+  if (data.length < 2) return ContentService
+    .createTextOutput(JSON.stringify({ok:true,headers:[],rows:[]}))
+    .setMimeType(ContentService.MimeType.JSON);
+  const headers = data[0];
+  let rows = data.slice(1).map(r => {
+    const obj = {};
+    headers.forEach((h,i) => obj[h] = r[i]);
+    return obj;
+  });
+  if (date)  rows = rows.filter(r => r['วันที่'] === date);
+  if (month) rows = rows.filter(r =>
+    String(r['วันที่']).includes(month));
+  return ContentService
+    .createTextOutput(JSON.stringify({ok:true, headers, rows}))
+    .setMimeType(ContentService.MimeType.JSON);
 }</div></details>
     <div class="step"><div class="step-n">4</div><div class="step-t">กด <code>Deploy</code> → <code>New deployment</code> → ประเภท <b>Web app</b></div></div>
     <div class="step"><div class="step-n">5</div><div class="step-t">ตั้งค่า Execute as: <b>Me</b> และ Who has access: <b>Anyone</b> → กด <b>Deploy</b></div></div>
@@ -450,12 +485,47 @@ function doGet(e) {
   </div>
 </div>
 
+<!-- PAGE: MONTHLY REPORT -->
+<div class="page" id="page-monthly">
+  <div class="sec">
+    <div class="sec-h"><h2>📅 รายงานรายเดือน</h2></div>
+    <div class="sec-b">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+        <div class="fi" style="flex:1;min-width:150px">
+          <label style="font-size:11px;font-weight:700;color:var(--mut);display:block;margin-bottom:5px">เลือกเดือน</label>
+          <input type="month" id="monthPicker"
+            style="width:100%;padding:10px 12px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
+        </div>
+        <button onclick="loadMonthly()" class="btn-save" style="padding:11px 18px;margin-top:18px;font-size:13px">
+          📊 ดูรายงาน
+        </button>
+      </div>
+      <div id="monthly-body">
+        <div style="text-align:center;padding:30px;color:var(--mut)">
+          <div style="font-size:32px;margin-bottom:10px">📅</div>
+          <div style="font-size:14px">เลือกเดือนและกด "ดูรายงาน"</div>
+          <div style="font-size:12px;margin-top:6px">ดึงข้อมูลจาก Google Sheet</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OPD Monthly -->
+  <div class="sec">
+    <div class="sec-h"><h2>🏥 OPD รายเดือน</h2></div>
+    <div class="sec-b" id="monthly-opd-body">
+      <div style="text-align:center;padding:20px;color:var(--mut);font-size:13px">เลือกเดือนและกด "ดูรายงาน"</div>
+    </div>
+  </div>
+</div>
+
 <!-- BOTTOM NAV -->
-<div class="bot-nav" style="grid-template-columns:repeat(5,1fr)">
+<div class="bot-nav" style="grid-template-columns:repeat(6,1fr)">
   <button class="bn on" onclick="switchPage('dash',this)"><span class="bni">📊</span>ภาพรวม</button>
   <button class="bn" onclick="switchPage('wards',this)"><span class="bni">🛏</span>รายหอ</button>
   <button class="bn" onclick="switchPage('staff',this)"><span class="bni">👩‍⚕️</span>กำลังพล</button>
   <button class="bn" onclick="switchPage('opd',this)"><span class="bni">🏥</span>OPD</button>
+  <button class="bn" onclick="switchPage('monthly',this)"><span class="bni">📅</span>รายเดือน</button>
   <button class="bn" onclick="switchPage('entry',this)"><span class="bni">✏️</span>ลงข้อมูล</button>
 </div>
 
@@ -839,15 +909,16 @@ function buildEntryForm(){
   <div class="f-sec">
     <div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div>
     <div class="f-sec-b">
-      <div class="ig4">
+      <div class="ig3" style="margin-bottom:8px">
         <div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="frn" value="${rn}" oninput="recalcIPD()"></div>
         <div class="fi"><label>TN</label><input class="ni" type="number" min="0" id="ftn" value="${tn}" oninput="recalcIPD()"></div>
         <div class="fi"><label>PN</label><input class="ni" type="number" min="0" id="fpn" value="${pn}" oninput="recalcIPD()"></div>
         <div class="fi"><label>NA</label><input class="ni" type="number" min="0" id="fna" value="${na}" oninput="recalcIPD()"></div>
+        <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="faid" value="${saved.aid||0}" oninput="recalcIPD()"></div>
       </div>
       <div class="res-box" style="margin-top:9px">
         <div class="rb"><div class="rv ok" id="rv-rn">${rn}</div><div class="rl">RN เวรนี้</div></div>
-        <div class="rb"><div class="rv" id="rv-st" style="color:var(--blue)">${rn+tn+pn+na}</div><div class="rl">รวม จนท.</div></div>
+        <div class="rb"><div class="rv" id="rv-st" style="color:var(--blue)">${rn+tn+pn+na+(saved.aid||0)}</div><div class="rl">รวม จนท.</div></div>
         <div class="rb"><div class="rv" id="rv-rt" style="color:var(--mut)">—</div><div class="rl">ผู้ป่วย:RN</div></div>
       </div>
     </div>
@@ -863,11 +934,11 @@ function buildEntryForm(){
 
 function recalcIPD(){
   const p=iv('fp'),a=iv('fa'),d=iv('fd'),o=iv('fo'),i=iv('fi');
-  const rn=iv('frn'),tn=iv('ftn'),pn=iv('fpn'),na=iv('fna');
+  const rn=iv('frn'),tn=iv('ftn'),pn=iv('fpn'),na=iv('fna'),aid=iv('faid');
   const c=Math.max(0,p+a-d-o+i);
   const occ_=curWard?.beds>0?Math.round((c/curWard.beds)*100):0;
   const ocs_=oc(occ_);const cls=ocCls(occ_);
-  const staff=rn+tn+pn+na;const ratio=rn>0?(c/rn).toFixed(1):'—';
+  const staff=rn+tn+pn+na+aid;const ratio=rn>0?(c/rn).toFixed(1):'—';
   const st=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
   st('mk-c',c);st('mk-o',occ_+'%');st('mk-r',rn>0?'1:'+ratio:'—');
   st('rv-c',c);st('rv-o',occ_+'%');
@@ -1180,7 +1251,7 @@ function collectIPD(){
   const c=Math.max(0,iv('fp')+iv('fa')-iv('fd')-iv('fo')+iv('fi'));
   return{ward:curWard.name,beds:curWard.beds,shift:curShift,date:new Date().toLocaleDateString('th-TH'),
     prev:iv('fp'),admit:iv('fa'),dc:iv('fd'),out:iv('fo'),inn:iv('fi'),
-    rn:iv('frn'),tn:iv('ftn'),pn:iv('fpn'),na:iv('fna'),
+    rn:iv('frn'),tn:iv('ftn'),pn:iv('fpn'),na:iv('fna'),aid:iv('faid'),
     note:$('fnote')?.value||'',census:c,savedAt:new Date().toLocaleTimeString('th-TH')};
 }
 function collectSU(){
@@ -1236,30 +1307,210 @@ function saveGsUrl(){
   localStorage.setItem('gs_url',url);updateGsChip();closeGsModal();showToast('✓ บันทึก URL สำเร็จ','ok');
 }
 
+// ═══ GOOGLE SHEET — ส่งข้อมูล (รองรับมือถือ) ═══
+async function postToSheet(payload){
+  const url=gsUrl();
+  if(!url) return false;
+  const body=JSON.stringify(payload);
+  // วิธีที่ 1: fetch ปกติ (PC/Android Chrome)
+  try{
+    await fetch(url,{method:'POST',body,headers:{'Content-Type':'text/plain'}});
+    return true;
+  }catch(e1){
+    // วิธีที่ 2: fetch no-cors (fallback)
+    try{
+      await fetch(url,{method:'POST',mode:'no-cors',body});
+      return true;
+    }catch(e2){
+      // วิธีที่ 3: ส่งผ่าน GET encoded (มือถือที่บล็อก POST)
+      try{
+        const encoded=encodeURIComponent(body);
+        await fetch(`${url}?payload=${encoded}`,{method:'GET',mode:'no-cors'});
+        return true;
+      }catch(e3){ return false; }
+    }
+  }
+}
+
 async function sendToSheet(){
   const url=gsUrl();
-  if(!url){showToast('⚠️ ยังไม่ได้ตั้งค่า Google Sheet — กด 📋 มุมขวาบน','err');return;}
+  if(!url){showToast('⚠️ ยังไม่ได้ตั้งค่า Google Sheet','err');return;}
   if(!curWard){showToast('กรุณาเลือกหอก่อน','err');return;}
   const today=new Date().toLocaleDateString('th-TH');
   const now=new Date().toLocaleTimeString('th-TH');
-  let sheet,headers,rows=[];
+  let payload;
   if(!curWard.isSpecial){
     const d=collectIPD();if(!d)return;
-    sheet='ward_census';
-    headers=['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดต้น','รับเข้า','จำหน่าย','ย้ายออก','ย้ายเข้า','คงอยู่','RN','TN','PN','NA','หมายเหตุ'];
-    rows=[[today,now,d.ward,d.beds,d.shift,d.prev,d.admit,d.dc,d.out,d.inn,d.census,d.rn,d.tn,d.pn,d.na,d.note]];
+    payload={sheet:'ward_census',
+      headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดต้น','รับเข้า','จำหน่าย','ย้ายออก','ย้ายเข้า','คงอยู่','RN','TN','PN','NA','คนงาน','หมายเหตุ'],
+      rows:[[today,now,d.ward,d.beds,d.shift,d.prev,d.admit,d.dc,d.out,d.inn,d.census,d.rn,d.tn,d.pn,d.na,d.aid||0,d.note]]};
   } else {
     const d=collectSU();if(!d)return;
-    sheet='special_census';
     const keys=Object.keys(d).filter(k=>!['ward','shift','date'].includes(k));
-    headers=['วันที่','เวลา','หน่วยงาน','เวร',...keys];
-    rows=[[today,now,d.ward,d.shift,...keys.map(k=>d[k])]];
+    payload={sheet:'special_census',
+      headers:['วันที่','เวลา','หน่วยงาน','เวร',...keys],
+      rows:[[today,now,d.ward,d.shift,...keys.map(k=>d[k])]]};
   }
   showToast('⏳ กำลังส่ง...','ok');
+  const ok=await postToSheet(payload);
+  showToast(ok?'✓ ส่งข้อมูลเข้า Google Sheet สำเร็จ':'❌ ส่งไม่สำเร็จ ตรวจสอบ URL',ok?'ok':'err');
+}
+
+async function sendOpdToSheet(){
+  const url=gsUrl();
+  if(!url){showToast('⚠️ ยังไม่ได้ตั้งค่า Google Sheet','err');return;}
+  const d=collectOpdData();
+  const today=new Date().toLocaleDateString('th-TH');
+  const now=new Date().toLocaleTimeString('th-TH');
+  const rows=OPD_CLINICS.map(c=>{
+    const r=d[c.id]||{};
+    const total=(r.rn||0)+(r.pn||0)+(r.other||0);
+    return[today,now,c.name,r.pt||0,r.rn||0,r.pn||0,r.other||0,total];
+  });
+  showToast('⏳ กำลังส่ง...','ok');
+  const ok=await postToSheet({sheet:'opd_census',
+    headers:['วันที่','เวลา','คลินิก','ผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','รวมบุคลากร'],rows});
+  showToast(ok?'✓ ส่งข้อมูล OPD สำเร็จ':'❌ ส่งไม่สำเร็จ',ok?'ok':'err');
+}
+
+// ═══ FETCH จาก SHEET (Dashboard real-time) ═══
+let sheetCache={ward:{},special:{},opd:{}};
+let lastFetchDate='';
+
+async function fetchFromSheet(sheetName,dateFilter){
+  const url=gsUrl(); if(!url) return null;
   try{
-    await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify({sheet,headers,rows})});
-    showToast('✓ ส่งข้อมูลเข้า Google Sheet สำเร็จ','ok');
-  }catch{showToast('❌ ส่งไม่สำเร็จ ตรวจสอบ URL','err');}
+    const res=await fetch(`${url}?sheet=${sheetName}&date=${encodeURIComponent(dateFilter)}`);
+    const j=await res.json();
+    return j.ok?j.rows:null;
+  }catch{ return null; }
+}
+
+async function refreshDashboardFromSheet(){
+  const today=new Date().toLocaleDateString('th-TH');
+  showToast('⏳ โหลดข้อมูลจาก Sheet...','ok');
+  const [wardRows,spRows,opdRows]=await Promise.all([
+    fetchFromSheet('ward_census',today),
+    fetchFromSheet('special_census',today),
+    fetchFromSheet('opd_census',today),
+  ]);
+  if(wardRows){
+    // รวมข้อมูลล่าสุดของแต่ละหอแต่ละเวร
+    wardRows.forEach(r=>{
+      const key=`ipd_${r['หอผู้ป่วย']}_${shiftKeyFromName(r['เวร'])}_${tk()}`;
+      const existing=lsG(key)||{};
+      // ใช้ข้อมูลล่าสุด (เวลามากกว่า)
+      if(!existing.savedAt||r['เวลา']>existing.savedAt){
+        lsS(key,{
+          ward:r['หอผู้ป่วย'],beds:r['เตียง']||0,shift:r['เวร'],
+          prev:+r['ยอดต้น']||0,admit:+r['รับเข้า']||0,dc:+r['จำหน่าย']||0,
+          out:+r['ย้ายออก']||0,inn:+r['ย้ายเข้า']||0,census:+r['คงอยู่']||0,
+          rn:+r['RN']||0,tn:+r['TN']||0,pn:+r['PN']||0,na:+r['NA']||0,
+          aid:+r['คนงาน']||0,note:r['หมายเหตุ']||'',savedAt:r['เวลา']
+        });
+      }
+    });
+  }
+  if(spRows){
+    spRows.forEach(r=>{
+      const key=`su_${r['หน่วยงาน']}_${tk()}`;
+      lsS(key,r);
+    });
+  }
+  if(opdRows){
+    const opdData={};
+    opdRows.forEach(r=>{
+      const clinic=OPD_CLINICS.find(c=>c.name===r['คลินิก']);
+      if(clinic) opdData[clinic.id]={pt:+r['ผู้ป่วย']||0,rn:+r['RN']||0,pn:+r['PN/NA']||0,other:+r['เจ้าหน้าที่']||0};
+    });
+    if(Object.keys(opdData).length>0) lsS(`opd_${tk()}`,opdData);
+  }
+  buildAll();
+  buildOpdChart();buildOpdStaffList('opdStaffList');buildOpdStaffList('opdStaffListPage');buildDbOpdSummary();
+  showToast('✓ โหลดข้อมูลล่าสุดจาก Sheet แล้ว','ok');
+}
+
+function shiftKeyFromName(name){
+  if(!name)return'morning';
+  if(name.includes('เช้า'))return'morning';
+  if(name.includes('บ่าย'))return'afternoon';
+  if(name.includes('ดึก'))return'night';
+  return'morning';
+}
+
+// ═══ AUTO-CLEAR ขึ้นวันใหม่ ═══
+function checkNewDay(){
+  const stored=localStorage.getItem('last_active_date');
+  const today=tk();
+  if(stored && stored!==today){
+    // ขึ้นวันใหม่ — ล้าง localStorage เก่า
+    Object.keys(localStorage).forEach(k=>{
+      if((k.startsWith('ipd_')||k.startsWith('su_')||k.startsWith('opd_'))&&!k.includes(today)){
+        localStorage.removeItem(k);
+      }
+    });
+    showToast('🌅 ขึ้นวันใหม่ — ล้างข้อมูลเมื่อวานแล้ว','ok');
+    buildAll();buildOpdChart();buildOpdStaffList('opdStaffList');buildOpdStaffList('opdStaffListPage');buildDbOpdSummary();
+  }
+  localStorage.setItem('last_active_date',today);
+}
+
+// ═══ MONTHLY REPORT ═══
+async function buildMonthlyReport(monthStr){
+  const el=$('monthly-body');if(!el)return;
+  el.innerHTML='<div style="text-align:center;padding:20px;color:var(--mut)">⏳ กำลังโหลด...</div>';
+  const url=gsUrl();
+  if(!url){
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--red)">⚠️ ยังไม่ได้ตั้งค่า Google Sheet</div>';
+    return;
+  }
+  try{
+    const res=await fetch(`${url}?sheet=ward_census&month=${encodeURIComponent(monthStr)}`);
+    const j=await res.json();
+    if(!j.ok||!j.rows.length){
+      el.innerHTML='<div style="text-align:center;padding:20px;color:var(--mut)">ไม่มีข้อมูลในเดือนที่เลือก</div>';
+      return;
+    }
+    // สรุปรายหอ
+    const wardSummary={};
+    j.rows.forEach(r=>{
+      const w=r['หอผู้ป่วย'];if(!w)return;
+      if(!wardSummary[w]) wardSummary[w]={ward:w,totalAdmit:0,totalDC:0,totalCensus:0,days:new Set(),maxOcc:0};
+      wardSummary[w].totalAdmit+=+r['รับเข้า']||0;
+      wardSummary[w].totalDC+=+r['จำหน่าย']||0;
+      wardSummary[w].totalCensus+=+r['คงอยู่']||0;
+      wardSummary[w].days.add(r['วันที่']);
+    });
+    const rows=Object.values(wardSummary).sort((a,b)=>b.totalAdmit-a.totalAdmit);
+    const totalAdmit=rows.reduce((s,r)=>s+r.totalAdmit,0);
+    const totalDC=rows.reduce((s,r)=>s+r.totalDC,0);
+    el.innerHTML=`
+      <div class="kpi3" style="margin-bottom:14px">
+        <div class="kc kb" style="margin:0"><div class="kl">Admit รวม</div><div class="kn">${totalAdmit}</div><div class="ks">เดือน ${monthStr}</div></div>
+        <div class="kc kg" style="margin:0"><div class="kl">จำหน่าย</div><div class="kn">${totalDC}</div></div>
+        <div class="kc ka" style="margin:0"><div class="kl">หอที่รายงาน</div><div class="kn">${rows.length}</div></div>
+      </div>
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:var(--surf2)">
+            <th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--brd);font-weight:700">หอผู้ป่วย</th>
+            <th style="padding:8px;border-bottom:2px solid var(--brd);font-weight:700">Admit</th>
+            <th style="padding:8px;border-bottom:2px solid var(--brd);font-weight:700">จำหน่าย</th>
+            <th style="padding:8px;border-bottom:2px solid var(--brd);font-weight:700">วันที่รายงาน</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map((r,i)=>`<tr style="background:${i%2===0?'var(--surf)':'var(--surf2)'}">
+              <td style="padding:7px 10px;font-weight:600;border-bottom:1px solid var(--brd)">${r.ward}</td>
+              <td style="padding:7px;text-align:center;border-bottom:1px solid var(--brd);font-family:'IBM Plex Sans Thai',sans-serif;font-weight:700;color:var(--blue)">${r.totalAdmit}</td>
+              <td style="padding:7px;text-align:center;border-bottom:1px solid var(--brd);font-family:'IBM Plex Sans Thai',sans-serif;font-weight:700;color:var(--grn)">${r.totalDC}</td>
+              <td style="padding:7px;text-align:center;border-bottom:1px solid var(--brd);color:var(--mut)">${r.days.size} วัน</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  }catch{
+    el.innerHTML='<div style="text-align:center;padding:20px;color:var(--red)">❌ โหลดไม่สำเร็จ ตรวจสอบ URL</div>';
+  }
 }
 
 // ═══ OPD DATA ═══
@@ -1514,6 +1765,50 @@ function buildDbOpdSummary(){
     }`;
 }
 
+async function loadMonthly(){
+  const picker=$('monthPicker');
+  const val=picker?.value;
+  if(!val){showToast('กรุณาเลือกเดือน','err');return;}
+  // แปลง 2026-05 → พ.ค. 2569
+  const [yr,mo]=val.split('-');
+  const moNames=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  const moTh=`${moNames[parseInt(mo)-1]} ${parseInt(yr)+543}`;
+  await buildMonthlyReport(moTh);
+  // OPD monthly
+  const opdEl=$('monthly-opd-body');
+  if(opdEl) await buildOpdMonthly(moTh);
+}
+
+async function buildOpdMonthly(monthStr){
+  const el=$('monthly-opd-body');if(!el)return;
+  el.innerHTML='<div style="text-align:center;padding:14px;color:var(--mut)">⏳ กำลังโหลด OPD...</div>';
+  const url=gsUrl();if(!url){el.innerHTML='';return;}
+  try{
+    const res=await fetch(`${url}?sheet=opd_census&month=${encodeURIComponent(monthStr)}`);
+    const j=await res.json();
+    if(!j.ok||!j.rows.length){el.innerHTML='<div style="text-align:center;padding:14px;color:var(--mut)">ไม่มีข้อมูล OPD</div>';return;}
+    const clinicSum={};
+    j.rows.forEach(r=>{
+      const c=r['คลินิก'];if(!c)return;
+      if(!clinicSum[c])clinicSum[c]={name:c,pt:0,days:new Set()};
+      clinicSum[c].pt+=+r['ผู้ป่วย']||0;
+      clinicSum[c].days.add(r['วันที่']);
+    });
+    const cRows=Object.values(clinicSum).sort((a,b)=>b.pt-a.pt);
+    const maxPt=cRows.length>0?cRows[0].pt:1;
+    el.innerHTML=cRows.map(c=>`
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="min-width:90px;font-size:12px;font-weight:600">${c.name.replace('OPD ','')}</div>
+        <div style="flex:1;height:20px;background:var(--surf3);border-radius:5px;overflow:hidden;border:1px solid var(--brd)">
+          <div style="height:100%;width:${Math.round((c.pt/maxPt)*100)}%;background:var(--blue);border-radius:5px;display:flex;align-items:center;justify-content:flex-end;padding-right:6px">
+            <span style="font-size:10px;font-weight:700;color:#fff">${c.pt}</span>
+          </div>
+        </div>
+        <span style="font-size:11px;color:var(--mut);min-width:36px;text-align:right">${c.days.size} วัน</span>
+      </div>`).join('');
+  }catch{el.innerHTML='<div style="text-align:center;padding:14px;color:var(--red)">❌ โหลดไม่สำเร็จ</div>';}
+}
+
 // ═══ CLEAR DATA ═══
 function clearTodayData(){
   if(!confirm('ล้างข้อมูลทั้งหมดของวันนี้?\nไม่สามารถกู้คืนได้')) return;
@@ -1533,15 +1828,21 @@ function clearTodayData(){
 // ═══ AUTO REFRESH ═══
 function startAutoRefresh(){
   if(refreshInterval)clearInterval(refreshInterval);
+  // refresh local dashboard ทุก 30 วินาที
   refreshInterval=setInterval(()=>{
+    checkNewDay();
     buildAll();
     buildOpdChart();
     buildOpdStaffList('opdStaffList');
     buildOpdStaffList('opdStaffListPage');
     buildDbOpdSummary();
     if(curPage==='entry') buildWardSelector();
-    if(curPage==='opd' && !curOpd) buildOpdSelector();
+    if(curPage==='opd'&&!curOpd) buildOpdSelector();
   },30000);
+  // ดึงข้อมูลจาก Sheet ทุก 2 นาที (ถ้ามี URL)
+  setInterval(()=>{
+    if(gsUrl()) refreshDashboardFromSheet();
+  },120000);
 }
 
 // ═══ INIT ═══
@@ -1550,6 +1851,11 @@ function startAutoRefresh(){
   const dy=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
   const mo=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   $('dateChip').textContent=`${dy[d.getDay()]} ${d.getDate()} ${mo[d.getMonth()]} ${d.getFullYear()+543}`;
+  // ตั้งค่า month picker เป็นเดือนปัจจุบัน
+  const mp=$('monthPicker');
+  if(mp) mp.value=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  // ตรวจขึ้นวันใหม่
+  checkNewDay();
   updateGsChip();
   buildAll();
   buildWardSelector();
