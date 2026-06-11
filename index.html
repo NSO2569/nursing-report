@@ -294,6 +294,10 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
     <div class="sec-h"><h2>🏥 OPD + ตรวจรักษาพิเศษ</h2><span class="badge" id="opd-ct-badge">—</span></div>
     <div class="sec-b" id="opdSummary"></div>
   </div>
+  <div class="sec">
+    <div class="sec-h"><h2>🩻 หน่วยตรวจรักษาพิเศษ</h2><span class="badge" id="sc-ct-badge">—</span></div>
+    <div class="sec-b"><div class="su4" id="spClinicDashGrid"></div></div>
+  </div>
   <div style="text-align:center;font-size:11px;color:var(--mut2);padding:6px 0" id="lastUpdated"></div>
 </div>
 
@@ -401,34 +405,54 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
     <div class="bs-t">🔗 เชื่อมต่อ Google Sheet</div>
     <div class="bs-s">วาง URL Apps Script เพื่อส่งและรับข้อมูลจาก Sheet ส่วนกลาง</div>
     <input class="gs-in" id="gsInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <button class="bf bf-blue" onclick="saveGsUrl()">✓ บันทึก URL และโหลดข้อมูล</button>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <button class="bf bf-blue" onclick="saveGsUrl()" style="flex:2;margin:0;padding:12px">✓ บันทึก URL</button>
+      <button onclick="testConnection()" style="flex:1;padding:12px;background:var(--amb-bg);color:var(--amb);border:1.5px solid var(--amb-b);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:13px;font-weight:700;cursor:pointer">🔍 ทดสอบ</button>
+    </div>
+    <div id="connTestResult" style="font-size:12px;text-align:center;color:var(--mut);margin-bottom:8px;min-height:18px"></div>
     <div class="div"></div>
     <div style="font-size:13px;font-weight:700;margin-bottom:10px">📖 Apps Script ที่ต้องใช้</div>
     <details><summary style="font-size:12px;font-weight:700;color:var(--blue);cursor:pointer;padding:4px 0">📋 คัดลอกโค้ด Apps Script</summary>
     <div class="script-box">// ══════════════════════════════════════
 // Apps Script — รองรับทุก device + CORS
+// วิธีติดตั้ง: Extensions > Apps Script > วาง > Deploy > Web App
+// Execute as: Me | Who has access: Anyone
 // ══════════════════════════════════════
 function doPost(e) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  let body = '';
-  try { body = e.postData.contents; } catch(ex) {}
-  if (!body && e.parameter && e.parameter.payload)
-    body = decodeURIComponent(e.parameter.payload);
-  const d = JSON.parse(body);
-  let sh = ss.getSheetByName(d.sheet);
-  if (!sh) { sh = ss.insertSheet(d.sheet); sh.appendRow(d.headers); }
-  else if (sh.getLastRow() === 0) { sh.appendRow(d.headers); }
-  d.rows.forEach(r => sh.appendRow(r));
-  return buildResponse(JSON.stringify({ok:true}));
+  return handleRequest(e);
 }
 
 function doGet(e) {
+  return handleRequest(e);
+}
+
+function handleRequest(e) {
   const p = e.parameter || {};
-  // POST ผ่าน GET (iOS fallback)
-  if (p.payload) return doPost(e);
+
+  // ── รับข้อมูล (POST หรือ GET?payload=...) ──
+  if (p.payload) {
+    // ส่งผ่าน GET + query string (วิธีหลักที่ใช้จาก app)
+    try {
+      const d = JSON.parse(decodeURIComponent(p.payload));
+      return writeData(d);
+    } catch(ex) {
+      return buildResponse(JSON.stringify({ok:false,error:ex.toString()}));
+    }
+  }
+
+  // ── รับข้อมูล POST body ──
+  if (e.postData && e.postData.contents) {
+    try {
+      const d = JSON.parse(e.postData.contents);
+      return writeData(d);
+    } catch(ex) {
+      return buildResponse(JSON.stringify({ok:false,error:ex.toString()}));
+    }
+  }
+
+  // ── อ่านข้อมูล (Dashboard) ──
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
-  // ดึงหลาย sheet พร้อมกัน (Dashboard ใช้ all=1)
   if (p.all === '1') {
     const sheetNames = ['ward_census','special_census','opd_census','special_clinic'];
     const result = {};
@@ -438,9 +462,21 @@ function doGet(e) {
     return buildResponse(JSON.stringify({ok:true, data:result}));
   }
 
-  // ดึง sheet เดียว
   const rows = getSheetRows(ss, p.sheet || 'ward_census', p.date, p.month);
   return buildResponse(JSON.stringify({ok:true, rows}));
+}
+
+function writeData(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sh = ss.getSheetByName(d.sheet);
+  if (!sh) {
+    sh = ss.insertSheet(d.sheet);
+    sh.appendRow(d.headers);
+  } else if (sh.getLastRow() === 0) {
+    sh.appendRow(d.headers);
+  }
+  d.rows.forEach(r => sh.appendRow(r));
+  return buildResponse(JSON.stringify({ok:true}));
 }
 
 function getSheetRows(ss, sheetName, dateFilter, monthFilter) {
@@ -454,7 +490,7 @@ function getSheetRows(ss, sheetName, dateFilter, monthFilter) {
     headers.forEach((h,i) => { if(h) obj[String(h)] = r[i]; });
     return obj;
   });
-  if (dateFilter)  rows = rows.filter(r => r['วันที่'] == dateFilter);
+  if (dateFilter)  rows = rows.filter(r => String(r['วันที่']) == String(dateFilter));
   if (monthFilter) rows = rows.filter(r => String(r['วันที่']).includes(monthFilter));
   return rows;
 }
@@ -463,7 +499,8 @@ function buildResponse(json) {
   return ContentService
     .createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
-}</div></details>
+}
+</div></details>
     <button class="bf bf-gray" onclick="closeGsModal()">ปิด</button>
   </div>
 </div>
@@ -730,6 +767,7 @@ function buildDashboard(){
   buildShiftCompare();
   buildSUCards(spMap);
   buildOpdSummaryCard(opdMap,scMap);
+  buildSpClinicDashGrid(scMap);
   buildOccList(wardMap);
   buildStaffPage(wardMap,spMap,opdMap,scMap);
   buildOpdPage(opdMap,scMap);
@@ -830,8 +868,31 @@ function buildSUCards(spMap){
   </div>`;
 }
 
-function buildOpdSummaryCard(opdMap,scMap){
-  const el=$('opdSummary');if(!el)return;
+function buildSpClinicDashGrid(scMap){
+  const el=$('spClinicDashGrid');if(!el)return;
+  const items=Object.values(scMap);
+  setT('sc-ct-badge',items.length+' หน่วย');
+  if(!items.length){
+    el.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="ei">🩻</div><p>ยังไม่มีข้อมูลหน่วยตรวจพิเศษวันนี้</p></div>';return;
+  }
+  el.innerHTML=items.map(r=>{
+    const meta=SPECIAL_CLINIC_META[r['คลินิก']]||{icon:'🩺',color:'#374151'};
+    const pt=n2(r['รวมผู้ป่วย']||0);
+    const appt=n2(r['ผู้ป่วยนัด']||0);
+    const walkin=n2(r['Walk-in']||0);
+    const rn=n2(r['RN']||0);
+    const staff=rn+n2(r['PN/NA']||0)+n2(r['เจ้าหน้าที่']||0)+n2(r['คนงาน']||0);
+    return `<div class="su-card">
+      <div class="su-card-h"><span class="su-ico">${meta.icon}</span><span class="su-nm">${r['คลินิก']}</span></div>
+      <div class="su-stat"><span class="su-lbl">รวมผู้ป่วย</span><span class="su-val" style="color:${meta.color}">${pt||'—'}</span></div>
+      <div class="su-stat"><span class="su-lbl">ผู้ป่วยนัด</span><span class="su-val">${appt||'—'}</span></div>
+      <div class="su-stat"><span class="su-lbl">Walk-in</span><span class="su-val">${walkin||'—'}</span></div>
+      <div class="su-stat"><span class="su-lbl">RN / บุคลากร</span><span class="su-val">${rn} / ${staff} คน</span></div>
+    </div>`;
+  }).join('');
+}
+
+function buildOpdSummaryCard(opdMap,scMap){  const el=$('opdSummary');if(!el)return;
   const allItems=[
     ...Object.values(opdMap).map(r=>({name:r['คลินิก'],pt:n2(r['รวมผู้ป่วย']||0),meta:OPD_META[r['คลินิก']]||{icon:'🏥',color:'#0369a1'}})),
     ...Object.values(scMap).map(r=>({name:r['คลินิก'],pt:n2(r['รวมผู้ป่วย']||0),meta:SPECIAL_CLINIC_META[r['คลินิก']]||{icon:'🏨',color:'#374151'}})),
@@ -1355,6 +1416,7 @@ function collectData(){
 async function sendAndSave(){
   const url=gsUrl();
   if(!url){showToast('⚠️ ยังไม่ได้ตั้งค่า Google Sheet — กด 📋','err');return;}
+  if(!url.includes('script.google.com')){showToast('⚠️ URL ไม่ถูกต้อง ต้องเป็น script.google.com','err');return;}
   const payload=collectData();
   if(!payload){showToast('กรุณาเลือกหอก่อน','err');return;}
   const btn=$('btnSheet');
@@ -1373,12 +1435,21 @@ async function sendAndSave(){
 
 async function postToSheet(url,payload){
   const body=JSON.stringify(payload);
+  // วิธีที่ 1: GET + payload (ทำงานได้กับ Apps Script ทุก browser รวม iOS)
   try{
-    const r=await Promise.race([fetch(url,{method:'POST',body,headers:{'Content-Type':'text/plain'}}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))]);
-    if(r.ok||r.type==='opaque')return true;
-  }catch{}
-  try{await fetch(url,{method:'POST',mode:'no-cors',body});return true;}catch{}
-  try{await fetch(`${url}?payload=${encodeURIComponent(body)}`,{method:'GET',mode:'no-cors'});return true;}catch{}
+    const getUrl=`${url}?payload=${encodeURIComponent(body)}`;
+    const r=await Promise.race([
+      fetch(getUrl,{method:'GET',mode:'no-cors'}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),10000))
+    ]);
+    // no-cors จะ return opaque response ซึ่งถือว่าส่งสำเร็จ
+    return true;
+  }catch(e1){}
+  // วิธีที่ 2: POST no-cors fallback
+  try{
+    await fetch(url,{method:'POST',mode:'no-cors',body,headers:{'Content-Type':'text/plain'}});
+    return true;
+  }catch(e2){}
   return false;
 }
 
@@ -1390,14 +1461,32 @@ function updateGsChip(){
   $('gsIco').textContent=ok?'✅':'📋';$('gsLbl').textContent=ok?'เชื่อมแล้ว':'Sheet';
   const c=$('gsChip');c.className='gs-chip '+(ok?'on':'set');
 }
-function openGsModal(){$('gsInput').value=gsUrl();$('gsOverlay').classList.add('on');}
+function openGsModal(){$('gsInput').value=gsUrl();$('gsOverlay').classList.add('on');if($('connTestResult'))$('connTestResult').textContent='';}
 function closeGsModal(){$('gsOverlay').classList.remove('on');}
 function closeGsIf(e){if(e.target===$('gsOverlay'))closeGsModal();}
 function saveGsUrl(){
   const url=$('gsInput').value.trim();
   if(!url){showToast('กรุณาใส่ URL','err');return;}
+  if(!url.includes('script.google.com')){showToast('URL ต้องเป็น script.google.com','err');return;}
   localStorage.setItem('gs_url',url);updateGsChip();closeGsModal();
   loadAll(true);
+}
+async function testConnection(){
+  const url=$('gsInput').value.trim();
+  const res=$('connTestResult');
+  if(!url){res.textContent='⚠️ ใส่ URL ก่อน';res.style.color='var(--amb)';return;}
+  res.textContent='⏳ กำลังทดสอบ...';res.style.color='var(--mut)';
+  try{
+    const r=await Promise.race([
+      fetch(`${url}?all=1&date=test`,{mode:'no-cors'}),
+      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))
+    ]);
+    // no-cors = opaque = URL ถูกต้องและ server ตอบสนอง
+    res.textContent='✅ เชื่อมต่อได้ — กด "บันทึก URL" เพื่อใช้งาน';res.style.color='var(--grn)';
+  }catch(e){
+    if(e.message==='timeout'){res.textContent='❌ หมดเวลา — ตรวจสอบ URL หรืออินเทอร์เน็ต';res.style.color='var(--red)';}
+    else{res.textContent='❌ เชื่อมต่อไม่ได้: '+e.message;res.style.color='var(--red)';}
+  }
 }
 
 // ════════════════════════════════════════
