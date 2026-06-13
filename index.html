@@ -261,7 +261,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
 </head>
 <body>
 
-<!-- HEADER -->
 <div class="hdr">
   <div class="hdr-row">
     <div class="logo">
@@ -284,7 +283,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
 
 <div class="status-bar" id="statusBar"></div>
 
-<!-- ========== PAGE 1: DASHBOARD ========== -->
 <div class="page on" id="page-dash">
   <div class="kpi2">
     <div class="kc kb"><div class="kl">ผู้ป่วย IPD รวม</div><div class="kn" id="kv-total">—</div><div class="ks">ทุกหอ เวรนี้</div></div>
@@ -320,7 +318,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
   <div style="text-align:center;font-size:11px;color:var(--mut2);padding:6px 0" id="lastUpdated"></div>
 </div>
 
-<!-- ========== PAGE 2: WARD OCC ========== -->
 <div class="page" id="page-wards">
   <div class="sec">
     <div class="sec-h"><h2>🛏 อัตราครองเตียงรายหอ</h2><span class="badge" id="ward-ct-badge">—</span></div>
@@ -328,7 +325,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
   </div>
 </div>
 
-<!-- ========== PAGE 3: STAFF ========== -->
 <div class="page" id="page-staff">
   <div class="sec">
     <div class="sec-h"><h2>👩‍⚕️ อัตรากำลัง IPD</h2></div>
@@ -344,7 +340,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
   </div>
 </div>
 
-<!-- ========== PAGE 4: OPD ========== -->
 <div class="page" id="page-opd">
   <div class="kpi2">
     <div class="kc kt"><div class="kl">OPD รวม</div><div class="kn" id="opd-total">—</div><div class="ks">ทุกคลินิก</div></div>
@@ -360,7 +355,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
   </div>
 </div>
 
-<!-- ========== PAGE 5: MONTHLY ========== -->
 <div class="page" id="page-monthly">
   <div class="sec">
     <div class="sec-h"><h2>📅 รายงานรายเดือน</h2></div>
@@ -377,7 +371,6 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
   </div>
 </div>
 
-<!-- ========== PAGE 6: ENTRY ========== -->
 <div class="page" id="page-entry">
   <div id="wardSelector">
     <div class="sec">
@@ -411,12 +404,10 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
   </div>
 </div>
 
-<!-- BOT ACTIONS (entry) -->
 <div class="bot-actions hidden" id="botActions">
   <button class="btn-save" onclick="sendAndSave()">💾 บันทึก & ส่งข้อมูล</button>
 </div>
 
-<!-- GS MODAL -->
 <div class="overlay" id="gsOverlay" onclick="closeGsIf(event)">
   <div class="bs" onclick="event.stopPropagation()">
     <div class="bs-h"></div>
@@ -453,7 +444,7 @@ function doGet(e) {
   if (p.payload) return doPost(e);
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   if (p.all === '1') {
-    const sheetNames = ['ward_census','special_census','opd_census','special_clinic'];
+    const sheetNames = ['ward_census','er_census','cl_census','or_census','ws_census','opd_census','special_clinic'];
     const result = {};
     sheetNames.forEach(name => {
       result[name] = getSheetRows(ss, name, p.date, p.month);
@@ -489,7 +480,6 @@ function buildResponse(json) {
   </div>
 </div>
 
-<!-- BOTTOM NAV -->
 <div class="bot-nav">
   <button class="bn on" onclick="switchPage('dash',this)"><span class="bni">📊</span>ภาพรวม</button>
   <button class="bn" onclick="switchPage('wards',this)"><span class="bni">🛏</span>รายหอ</button>
@@ -555,6 +545,7 @@ const WARDS=[
   {dept:'OPD',name:'PMC',beds:0},
   {dept:'OPD',name:'SMC',beds:0},
   {dept:'OPD',name:'NCD',beds:0},
+  {dept:'OPD',name:'OPD เวชกรรมฟื้นฟู',beds:0},
   {dept:'ตรวจพิเศษ',name:'ไตเทียม',beds:0},
   {dept:'ตรวจพิเศษ',name:'ECHO',beds:0},
   {dept:'ตรวจพิเศษ',name:'ส่องกล้อง',beds:0},
@@ -578,6 +569,7 @@ const OPD_META = {
   'PMC':{icon:'🏥',color:'#0f766e'},
   'SMC':{icon:'🏥',color:'#0369a1'},
   'NCD':{icon:'💉',color:'#4c1d95'},
+  'OPD เวชกรรมฟื้นฟู':{icon:'🏃‍♂️',color:'#059669'},
 };
 const SPECIAL_CLINIC_META = {
   'ไตเทียม':{icon:'🫀',color:'#b91c1c'},
@@ -591,6 +583,7 @@ const SPECIAL_CLINIC_META = {
 // ════════════════════════════════════════
 let curShift='morning', curWard=null, curFilterDept='all', curPage='dash';
 let allWardRows=[], allSpRows=[], allOpdRows=[], allSpClinicRows=[];
+let allErRows=[], allClRows=[], allOrRows=[], allWsRows=[];
 let refreshTimer=null, countdownSec=60;
 
 // ════════════════════════════════════════
@@ -600,13 +593,20 @@ const $=id=>document.getElementById(id);
 const setT=(id,v)=>{const e=$(id);if(e)e.textContent=v;};
 const iv=id=>parseInt($(id)?.value||'0')||0;
 const n2=v=>isNaN(+v)?0:(+v||0);
+
+// --- 🛡️ Safe LocalStorage Wrappers (ป้องกันเบราว์เซอร์บล็อกการทำงาน) ---
+function getLS(k){ try{return localStorage.getItem(k);}catch(e){return null;} }
+function setLS(k,v){ try{localStorage.setItem(k,v);}catch(e){} }
+function rmLS(k){ try{localStorage.removeItem(k);}catch(e){} }
+
 // ── ฝัง URL Apps Script ตรงนี้ — ใส่ URL แล้วแชร์ไฟล์ได้เลย ──
-const APPS_SCRIPT_URL = ''; // ← วาง URL ของ Apps Script ที่นี่
-const gsUrl=()=>localStorage.getItem('gs_url')||APPS_SCRIPT_URL||'';
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzuXIwYFbKp0QE5fGPsVrE00GfdCNk8n1UA5ihsSm1SKCmKHN8eHKZMUkkPTmeHWHGl/exec'; 
+
+const gsUrl=()=>getLS('gs_url')||APPS_SCRIPT_URL||'';
 const tk=()=>{const d=new Date();return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;};
 const sentKey=()=>`sent_${curWard?.name}_${curShift}_${tk()}`;
-const wasSent=()=>!!localStorage.getItem(sentKey());
-const markSent=()=>localStorage.setItem(sentKey(),'1');
+const wasSent=()=>!!getLS(sentKey());
+const markSent=()=>setLS(sentKey(),'1');
 const oc=p=>p>=100?'#b91c1c':p>=85?'#b45309':'#047857';
 const ocCls=p=>p>=100?'danger':p>=85?'warn':'ok';
 
@@ -626,6 +626,58 @@ function showStatus(msg){
   const mo=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   $('dateChip').textContent=`${dy[d.getDay()]} ${d.getDate()} ${mo[d.getMonth()]} ${d.getFullYear()+543}`;
 })();
+// แปลง Date ทุกรูปแบบจาก Sheet → "D เดือน YYYY พ.ศ."
+function normDateStr(raw){
+  const MO=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  if(raw===null||raw===undefined) return '';
+  if(raw instanceof Date){
+    return `${raw.getDate()} ${MO[raw.getMonth()]} ${raw.getFullYear()+543}`;
+  }
+  const s=String(raw).trim();
+  if(!s||s==='0'||s==='false') return '';
+
+  if(/^\d{1,2}\s+[ก-ูเ-ไ]+/.test(s)) return s;
+
+  const iso=s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if(iso){
+    const y=parseInt(iso[1]),m=parseInt(iso[2]),d=parseInt(iso[3]);
+    return `${d} ${MO[m-1]} ${y+543}`;
+  }
+
+  const slDMY=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(slDMY){
+    const d=parseInt(slDMY[1]),m=parseInt(slDMY[2]),y=parseInt(slDMY[3]);
+    if(m>=1&&m<=12&&d>=1&&d<=31){
+      const yr=y>=2500?y:y+543; 
+      return `${d} ${MO[m-1]} ${yr}`;
+    }
+  }
+
+  const slMDY=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(slMDY){
+    let d=parseInt(slMDY[1]),m=parseInt(slMDY[2]),y=parseInt(slMDY[3]);
+    if(d>12){[d,m]=[m,d];} 
+    if(m>=1&&m<=12){
+      const yr=y>=2500?y:y+543;
+      return `${d} ${MO[m-1]} ${yr}`;
+    }
+  }
+
+  const enMo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const eng=s.match(/([A-Z][a-z]{2})\s+(\d{1,2})\s+(\d{4})/);
+  if(eng){
+    const mi=enMo.indexOf(eng[1]);
+    if(mi>=0) return `${parseInt(eng[2])} ${MO[mi]} ${parseInt(eng[3])+543}`;
+  }
+  const eng2=s.match(/(\d{1,2})\s+([A-Z][a-z]{2})\s+(\d{4})/);
+  if(eng2){
+    const mi=enMo.indexOf(eng2[2]);
+    if(mi>=0) return `${parseInt(eng2[1])} ${MO[mi]} ${parseInt(eng2[3])+543}`;
+  }
+
+  return s; 
+}
+
 function todayThai(){
   const d=new Date();
   const mo=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -656,121 +708,129 @@ function switchPage(p,btn){
 // ════════════════════════════════════════
 //  FETCH FROM SHEET
 // ════════════════════════════════════════
-async function fetchSheet(sheetName,params={}){
-  const url=gsUrl();if(!url)return[];
-  try{
-    let qs=`sheet=${encodeURIComponent(sheetName)}`;
-    Object.entries(params).forEach(([k,v])=>{qs+=`&${k}=${encodeURIComponent(v)}`;});
-    const res=await Promise.race([
-      fetch(`${url}?${qs}`),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),10000))
-    ]);
-    const j=await res.json();
-    return j.ok?j.rows:[];
-  }catch{return[];}
+function fetchSheetXHR(sheetName){
+  return new Promise(resolve=>{
+    const url=gsUrl(); if(!url){resolve([]);return;}
+    try{
+      const xhr=new XMLHttpRequest();
+      xhr.open('GET',`${url}?sheet=${encodeURIComponent(sheetName)}&t=${Date.now()}`,true);
+      xhr.timeout=8000; // ลดจาก 15s → 8s
+      xhr.onload=()=>{
+        try{
+          if(xhr.status===0||xhr.status===200){
+            const j=JSON.parse(xhr.responseText);
+            resolve(j.ok?(j.rows||[]):[]);
+          } else resolve([]);
+        }catch{resolve([]);}
+      };
+      xhr.onerror=()=>resolve([]);
+      xhr.ontimeout=()=>resolve([]);
+      xhr.send();
+    }catch{resolve([]);}
+  });
 }
 
 async function loadAll(showMsg=false){
   const url=gsUrl();
-  if(!url){buildDashboard();return;}
-  if(showMsg)showToast('⏳ กำลังโหลดข้อมูล...','ok');
-  const today=todayThai();
-  try{
-    // ดึงทุก sheet พร้อมกันในคำขอเดียว (all=1) — ไม่กรองวันที่ฝั่ง server เพื่อ debug
-    const res=await Promise.race([
-      fetch(`${url}?all=1`),
-      new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),12000))
-    ]);
-    const j=await res.json();
-    if(j.ok && j.data){
-      allWardRows      = j.data.ward_census      || [];
-      allSpRows        = j.data.special_census   || [];
-      allOpdRows       = j.data.opd_census       || [];
-      allSpClinicRows  = j.data.special_clinic   || [];
-    } else if(j.ok && j.rows){
-      allWardRows=j.rows||[];
-    }
-    // กรองเฉพาะวันนี้ฝั่ง client (รองรับทุก format)
-    const filterToday=rows=>rows.filter(r=>{
-      const d=String(r['วันที่']||'');
-      return d===today||d.includes(today)||today.includes(d.trim());
-    });
-    allWardRows=filterToday(allWardRows);
-    allSpRows=filterToday(allSpRows);
-    allOpdRows=filterToday(allOpdRows);
-    allSpClinicRows=filterToday(allSpClinicRows);
+  // แสดง dashboard ทันทีก่อน (ไม่รอ fetch)
+  buildDashboard();
+  if(!url){ return; }
+  if(showMsg) showToast('⏳ กำลังโหลด...','ok');
 
-    buildDashboard();
-    const now=new Date().toLocaleTimeString('th-TH');
-    const spCount=allSpRows.length;
-    const opdCount=allOpdRows.length+allSpClinicRows.length;
-    setT('lastUpdated',`อัปเดตล่าสุด: ${now}  (IPD ${allWardRows.length} หอ • พิเศษ ${spCount} • OPD ${opdCount})`);
-    if(showMsg)showToast(`✓ โหลดสำเร็จ — IPD ${allWardRows.length} หอ`,'ok');
-  }catch(err){
-    // Fallback: ดึงแยก sheet ไม่กรองวันที่
-    try{
-      const [wr,sr,or,scr]=await Promise.all([
-        fetchSheet('ward_census',{}),
-        fetchSheet('special_census',{}),
-        fetchSheet('opd_census',{}),
-        fetchSheet('special_clinic',{}),
-      ]);
-      const filterToday=rows=>rows.filter(r=>{
-        const d=String(r['วันที่']||'');
-        return d===today||d.includes(today)||today.includes(d.trim());
-      });
-      allWardRows=filterToday(wr||[]);
-      allSpRows=filterToday(sr||[]);
-      allOpdRows=filterToday(or||[]);
-      allSpClinicRows=filterToday(scr||[]);
-      buildDashboard();
-      if(showMsg)showToast('✓ โหลดสำเร็จ ('+allWardRows.length+' หอ)','ok');
-    }catch(e2){
-      if(showMsg)showToast('❌ โหลดไม่สำเร็จ — ตรวจสอบ URL','err');
+  const today=todayThai();
+  const parseThai=s=>{
+    const mo=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const parts=s.trim().split(/\s+/);
+    if(parts.length<3) return null;
+    const m=mo.indexOf(parts[1])+1;
+    return m>0?{d:parseInt(parts[0]),m,y:parseInt(parts[2])}:null;
+  };
+  const todayParts=parseThai(today);
+  const sameDay=raw=>{
+    if(!raw&&raw!==0) return false;
+    const norm=normDateStr(raw);
+    if(!norm) return false;
+    if(norm===today) return true;
+    const p=parseThai(norm);
+    if(p&&todayParts) return p.d===todayParts.d&&p.m===todayParts.m&&p.y===todayParts.y;
+    return norm.includes(today)||today.includes(norm.trim());
+  };
+  const filterToday=rows=>(rows||[]).filter(r=>sameDay(r['วันที่']));
+
+  try{
+    const sheets=['ward_census','er_census','cl_census','or_census','ws_census','opd_census','special_clinic'];
+    const results=await Promise.all(sheets.map(s=>fetchSheetXHR(s)));
+
+    allWardRows     = filterToday(results[0]);
+    allErRows       = filterToday(results[1]);
+    allClRows       = filterToday(results[2]);
+    allOrRows       = filterToday(results[3]);
+    allWsRows       = filterToday(results[4]);
+    allOpdRows      = filterToday(results[5]);
+    allSpClinicRows = filterToday(results[6]);
+
+    const total=results.reduce((s,r)=>s+r.length,0);
+    const totalToday=allWardRows.length+allErRows.length+allClRows.length+allOrRows.length+allWsRows.length+allOpdRows.length+allSpClinicRows.length;
+
+    if(showMsg){
+      if(totalToday>0) showToast(`✓ โหลดสำเร็จ ${totalToday} รายการวันนี้`,'ok');
+      else if(total>0) showToast(`⚠️ Sheet มีข้อมูล ${total} แถว แต่ไม่มีวันนี้ (${today})`,'ok');
+      else showToast('⚠️ ยังไม่มีข้อมูลใน Sheet','ok');
     }
+  }catch(err){
+    if(showMsg) showToast('⚠️ โหลดไม่สำเร็จ','err');
   }
+
+  // อัปเดต dashboard หลัง fetch เสร็จ
+  buildDashboard();
 }
 
 // ════════════════════════════════════════
 //  BUILD DASHBOARD
 // ════════════════════════════════════════
 function buildDashboard(){
-  const shiftName={morning:'เวรเช้า',afternoon:'เวรบ่าย',night:'เวรดึก'}[curShift];
+  const shiftKeys={morning:['เวรเช้า','เช้า'],afternoon:['เวรบ่าย','บ่าย'],night:['เวรดึก','ดึก']};
+  const keys=shiftKeys[curShift]||['เวรเช้า','เช้า'];
+  const matchShift=r=>{
+    const rv=String(r['เวร']||'').trim();
+    return rv===''||keys.some(k=>rv===k||rv.includes(k));
+  };
+  const latestOf=(rows,unitKey)=>{
+    const m={};
+    (rows||[]).filter(matchShift).forEach(r=>{
+      const u=String(r[unitKey]||'').trim(); if(!u) return;
+      if(!m[u]||String(r['เวลา'])>String(m[u]['เวลา'])) m[u]=r;
+    });
+    return m;
+  };
+  const latestRow=rows=>{
+    if(!rows||!rows.length) return {};
+    const filt=rows.filter(matchShift);
+    const src=filt.length?filt:rows;
+    return src.reduce((a,b)=>String(b['เวลา'])>String(a['เวลา'])?b:a, src[0]);
+  };
 
-  // Ward — กรองเวร + ใช้ล่าสุดแต่ละหอ
-  const wardMap={};
-  allWardRows.forEach(r=>{
-    const rv=r['เวร']||'';
-    // รองรับทั้ง "เวรเช้า" และ "เช้า"
-    const match=rv===shiftName||rv===shiftName.replace('เวร','')||rv.includes(shiftName.replace('เวร',''));
-    if(!match)return;
-    const w=r['หอผู้ป่วย'];if(!w)return;
-    if(!wardMap[w]||String(r['เวลา'])>String(wardMap[w]['เวลา']))wardMap[w]=r;
-  });
+  const wardMap = latestOf(allWardRows,'หอผู้ป่วย');
+  const spMap = {
+    'ห้องฉุกเฉิน ER': latestRow(allErRows),
+    'ห้องคลอด':       latestRow(allClRows),
+    'ห้องผ่าตัด OR':  latestRow(allOrRows),
+    'งานวิสัญญี':     latestRow(allWsRows),
+  };
+  const opdMap = latestOf(allOpdRows,'คลินิก');
+  const scMap  = latestOf(allSpClinicRows,'คลินิก');
 
-  // Special — กรองเวร + ใช้ล่าสุด
-  const spMap={};
-  allSpRows.forEach(r=>{
-    const rv=r['เวร']||'';
-    const match=rv===shiftName||rv===shiftName.replace('เวร','')||rv.includes(shiftName.replace('เวร',''))||rv==='';
-    if(!match)return;
-    const u=r['หน่วยงาน'];if(!u)return;
-    if(!spMap[u]||String(r['เวลา'])>String(spMap[u]['เวลา']))spMap[u]=r;
-  });
+  const now2=new Date().toLocaleTimeString('th-TH');
+  const totalToday=allWardRows.length+allErRows.length+allClRows.length+allOrRows.length+allWsRows.length+allOpdRows.length+allSpClinicRows.length;
+  const shiftLabel={morning:'เวรเช้า',afternoon:'เวรบ่าย',night:'เวรดึก'}[curShift];
 
-  // OPD — ไม่แยกเวร ใช้ล่าสุดแต่ละคลินิก
-  const opdMap={};
-  allOpdRows.forEach(r=>{
-    const c=r['คลินิก'];if(!c)return;
-    if(!opdMap[c]||String(r['เวลา'])>String(opdMap[c]['เวลา']))opdMap[c]=r;
-  });
-
-  // Special clinic
-  const scMap={};
-  allSpClinicRows.forEach(r=>{
-    const c=r['คลินิก'];if(!c)return;
-    if(!scMap[c]||String(r['เวลา'])>String(scMap[c]['เวลา']))scMap[c]=r;
-  });
+  if(totalToday>0){
+    setT('lastUpdated',`🕐 ${now2} · ${shiftLabel} · IPD ${allWardRows.length} · ER ${allErRows.length} · คลอด ${allClRows.length} · OR ${allOrRows.length} · OPD ${allOpdRows.length+allSpClinicRows.length}`);
+  } else if(gsUrl()){
+    setT('lastUpdated',`🕐 ${now2} · ยังไม่มีข้อมูลวันนี้ — กด 🔄 เพื่อโหลดใหม่`);
+  } else {
+    setT('lastUpdated',`กด 📋 Sheet เพื่อตั้งค่า URL แล้วเชื่อมต่อ Google Sheet`);
+  }
 
   buildKPIs(wardMap,spMap,opdMap,scMap);
   buildAlerts(wardMap);
@@ -798,7 +858,6 @@ function buildKPIs(wardMap,spMap,opdMap,scMap){
   setT('kv-dc',dc||'—');
   setT('kv-alert',alertN);
 
-  // รองรับทั้ง key ไทยและ key อังกฤษ
   const er=spMap['ห้องฉุกเฉิน ER']||spMap['ER']||{};
   const or_=spMap['ห้องผ่าตัด OR']||spMap['OR']||{};
   const cl=spMap['ห้องคลอด']||spMap['คลอด']||{};
@@ -837,13 +896,26 @@ function buildAlerts(wardMap){
 
 function buildShiftCompare(){
   const sc=$('shiftCmp');if(!sc)return;
-  const shifts=[{s:'morning',e:'☀️',n:'เช้า',cl:'sc-m'},{s:'afternoon',e:'🌤',n:'บ่าย',cl:'sc-a'},{s:'night',e:'🌙',n:'ดึก',cl:'sc-n'}];
+  const shifts=[
+    {s:'morning', e:'☀️',n:'เช้า', cl:'sc-m', keys:['เวรเช้า','เช้า']},
+    {s:'afternoon',e:'🌤',n:'บ่าย',cl:'sc-a', keys:['เวรบ่าย','บ่าย']},
+    {s:'night',    e:'🌙',n:'ดึก', cl:'sc-n', keys:['เวรดึก','ดึก']},
+  ];
   sc.innerHTML=shifts.map(sh=>{
-    const sn={morning:'เวรเช้า',afternoon:'เวรบ่าย',night:'เวรดึก'}[sh.s];
-    const rows=allWardRows.filter(r=>r['เวร']===sn);
-    const wm={};rows.forEach(r=>{const w=r['หอผู้ป่วย'];if(!w)return;if(!wm[w]||r['เวลา']>wm[w]['เวลา'])wm[w]=r;});
-    let a=0,d=0;Object.values(wm).forEach(r=>{a+=n2(r['รับเข้า']);d+=n2(r['จำหน่าย']);});
-    return `<div class="sc-it ${sh.cl}"><span class="sv">${a||'—'}</span><span class="sl">${sh.e} ${sh.n}</span><span class="ss">DC: ${d||'—'}</span></div>`;
+    const rows=allWardRows.filter(r=>{
+      const rv=String(r['เวร']||'');
+      return sh.keys.some(k=>rv===k||rv.includes(k));
+    });
+    const wm={};
+    rows.forEach(r=>{const w=r['หอผู้ป่วย'];if(!w)return;if(!wm[w]||String(r['เวลา'])>String(wm[w]['เวลา']))wm[w]=r;});
+    let a=0,d=0,census=0;
+    Object.values(wm).forEach(r=>{a+=n2(r['รับเข้า']);d+=n2(r['จำหน่าย']);census+=n2(r['คงอยู่']);});
+    const ct=Object.keys(wm).length;
+    return `<div class="sc-it ${sh.cl}">
+      <span class="sv">${census||'—'}</span>
+      <span class="sl">${sh.e} ${sh.n} (${ct} หอ)</span>
+      <span class="ss">รับ ${a} · DC ${d}</span>
+    </div>`;
   }).join('');
 }
 
@@ -929,7 +1001,6 @@ function buildOccList(wardMap){
 }
 
 function buildStaffPage(wardMap,spMap,opdMap,scMap){
-  // IPD
   const sl=$('staffList');
   if(sl){
     const items=Object.values(wardMap).filter(r=>n2(r['คงอยู่'])>0).sort((a,b)=>n2(b['คงอยู่'])-n2(a['คงอยู่']));
@@ -942,7 +1013,6 @@ function buildStaffPage(wardMap,spMap,opdMap,scMap){
       return `<div class="sf-row"><span class="sf-name">${r['หอผู้ป่วย']}</span><span class="sf-c">${pt}</span><span class="sf-rn">RN ${rn}</span><span class="sf-total">${total} คน</span><span class="sf-ratio">${rn>0?'1:'+ratio:'—'}</span><span class="${cls}">${ratio==='—'?'—':ratio>8?'ขาดแคลน':ratio>6?'ตึงตัว':'พอเพียง'}</span></div>`;
     }).join('');
   }
-  // Special
   const susl=$('suStaffList');
   if(susl){
     const units=[
@@ -958,7 +1028,6 @@ function buildStaffPage(wardMap,spMap,opdMap,scMap){
       return `<div class="sf-row"><span class="sf-name">${u.name}</span><span class="sf-c">${pt||'—'}</span><span class="sf-rn">RN ${rn}</span><span class="sf-total">${total} คน</span><span class="sf-ratio">${ratio!=='—'?'1:'+ratio:'—'}</span><span class="p-ok">—</span></div>`;
     }).join('');
   }
-  // OPD staff
   const osl=$('opdStaffList');
   if(osl){
     const allClinic=[...Object.values(opdMap),...Object.values(scMap)].filter(r=>r['คลินิก']);
@@ -973,7 +1042,6 @@ function buildStaffPage(wardMap,spMap,opdMap,scMap){
 }
 
 function buildOpdPage(opdMap,scMap){
-  // OPD chart
   const oc2=$('opdChart');
   if(oc2){
     const items=Object.values(opdMap).filter(r=>r['คลินิก']).sort((a,b)=>n2(b['รวมผู้ป่วย']||0)-n2(a['รวมผู้ป่วย']||0));
@@ -987,7 +1055,6 @@ function buildOpdPage(opdMap,scMap){
       }).join('');
     }
   }
-  // Special clinic chart
   const scc=$('specialClinicChart');
   if(scc){
     const items=Object.values(scMap).filter(r=>r['คลินิก']).sort((a,b)=>n2(b['รวมผู้ป่วย']||0)-n2(a['รวมผู้ป่วย']||0));
@@ -1014,7 +1081,18 @@ async function loadMonthly(){
   const moNames=['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
   const monthTh=`${moNames[parseInt(mo)-1]} ${parseInt(yr)+543}`;
   const body=$('monthlyBody');if(body)body.innerHTML='<div class="loading"><div class="spin"></div><span>กำลังโหลด...</span></div>';
-  const rows=await fetchSheet('ward_census',{month:monthTh});
+  const rows = await new Promise(resolve => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', `${url}?sheet=ward_census&month=${encodeURIComponent(monthTh)}&t=${Date.now()}`, true);
+    xhr.onload = () => {
+      try {
+        const j = JSON.parse(xhr.responseText);
+        resolve(j.ok ? (j.rows || []) : []);
+      } catch { resolve([]); }
+    };
+    xhr.onerror = () => resolve([]);
+    xhr.send();
+  });
   if(!rows||!rows.length){body.innerHTML=`<div class="empty-state"><div class="ei">📅</div><p>ไม่มีข้อมูลในเดือน ${monthTh}</p></div>`;return;}
   const wardSum={};
   rows.forEach(r=>{
@@ -1050,13 +1128,14 @@ async function loadMonthly(){
 function buildWardSelector(){
   const grid=$('wardSelGrid');if(!grid)return;grid.innerHTML='';
   WARDS.filter(w=>curFilterDept==='all'||(w.dept===curFilterDept)||(curFilterDept==='ตรวจพิเศษ'&&w.dept==='ตรวจพิเศษ')).forEach(w=>{
-    const sent=!!localStorage.getItem(`sent_${w.name}_${curShift}_${tk()}`);
+    let sent=false;
+    try{ sent=!!getLS(`sent_${w.name}_${curShift}_${tk()}`); }catch(e){}
     const iconMap={'พิเศษ':{'ห้องฉุกเฉิน ER':'🚨','ห้องคลอด':'🤱','ห้องผ่าตัด OR':'🔪','งานวิสัญญี':'💉'},'OPD':(n=>OPD_META[n]?.icon||'🏥'),'ตรวจพิเศษ':(n=>SPECIAL_CLINIC_META[n]?.icon||'🩺')};
     let icon='';
     if(w.dept==='พิเศษ') icon=iconMap['พิเศษ'][w.name]||'🔬';
     else if(w.dept==='OPD') icon=OPD_META[w.name]?.icon||'🏥';
     else if(w.dept==='ตรวจพิเศษ') icon=SPECIAL_CLINIC_META[w.name]?.icon||'🩺';
-    grid.innerHTML+=`<button class="ward-btn" onclick="selectWard('${w.name.replace(/'/g,"\'")}',${w.beds},'${w.dept}')">
+    grid.innerHTML+=`<button class="ward-btn" onclick="selectWard('${w.name.replace(/'/g,"\\'")}',${w.beds},'${w.dept}')">
       <span class="wb-sent">${sent?'✅':''}</span>
       ${icon?`<span style="font-size:16px">${icon}</span><br>`:''}
       <span>${w.name}</span>
@@ -1109,6 +1188,7 @@ function buildIPDForm(){
     <div class="mk mk-g"><div class="mv" id="mk-o">0%</div><div class="ml">ครองเตียง</div></div>
     <div class="mk mk-a"><div class="mv" id="mk-r">—</div><div class="ml">ผู้ป่วย:RN</div></div>
   </div>
+
   <div class="f-sec"><div class="f-sec-h"><span>📊</span><span class="ft">ยอดผู้ป่วย</span></div><div class="f-sec-b">
     <div class="ig2" style="margin-bottom:9px">
       <div class="fi"><label>ยอดต้น</label><input class="ni" type="number" min="0" id="fp" value="0" oninput="recalcIPD()"></div>
@@ -1128,6 +1208,15 @@ function buildIPDForm(){
       <div class="occ-out"><div class="occ-in" id="om-b" style="width:0%;background:${ocs_}"></div></div>
     </div>
   </div></div>
+
+  <div class="f-sec"><div class="f-sec-h"><span>🚦</span><span class="ft">ประเภทผู้ป่วย</span></div><div class="f-sec-b">
+    <div class="ig4">
+      <div class="fi"><label style="color:var(--red)">วิกฤต</label><input class="ni" type="number" min="0" id="ipd-cri" value="0"></div>
+      <div class="fi"><label style="color:var(--blue)">สามัญ</label><input class="ni" type="number" min="0" id="ipd-gen" value="0"></div>
+      <div class="fi"><label style="color:var(--amb)">พิเศษ</label><input class="ni" type="number" min="0" id="ipd-spc" value="0"></div>
+      <div class="fi"><label style="color:var(--mut)">On Tube</label><input class="ni" type="number" min="0" id="ipd-vent" value="0"></div>
+    </div>
+  </div></div>
   <div class="f-sec"><div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div><div class="f-sec-b">
     <div class="ig3" style="margin-bottom:8px">
       <div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="frn" value="0" oninput="recalcIPD()"></div>
@@ -1142,6 +1231,11 @@ function buildIPDForm(){
       <div class="rb"><div class="rv" id="rv-rt" style="color:var(--mut)">—</div><div class="rl">ผู้ป่วย:RN</div></div>
     </div>
   </div></div>
+  
+  <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
+    <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
+  </div></div>
+  
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="fnote" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
@@ -1167,10 +1261,12 @@ function recalcIPD(){
 function buildSpecialForm(){
   const n=curWard.name;
   if(wasSent()) showStatus('✅ ส่ง Sheet แล้ว');
-  if(n==='ห้องฉุกเฉิน ER') $('efBody').innerHTML=buildERForm();
-  else if(n==='ห้องคลอด') $('efBody').innerHTML=buildCLForm();
-  else if(n==='ห้องผ่าตัด OR') $('efBody').innerHTML=buildORForm();
-  else if(n==='งานวิสัญญี') $('efBody').innerHTML=buildWSForm();
+  let html='';
+  if(n==='ห้องฉุกเฉิน ER')   html=buildERForm();
+  else if(n==='ห้องคลอด')     html=buildCLForm();
+  else if(n==='ห้องผ่าตัด OR') html=buildORForm();
+  else if(n==='งานวิสัญญี')   html=buildWSForm();
+  $('efBody').innerHTML = html;
 }
 function g(id){const e=$(id);return e?parseInt(e.value)||0:0;}
 
@@ -1216,6 +1312,9 @@ function buildERForm(){
       <div class="fi"><label>NA</label><input class="ni" type="number" min="0" id="er-na" value="0"></div>
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="er-aid" value="0"></div>
     </div>
+  </div></div>
+  <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
+    <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="er-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
@@ -1278,6 +1377,9 @@ function buildCLForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="cl-aid" value="0"></div>
     </div>
   </div></div>
+  <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
+    <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
+  </div></div>
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="cl-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
@@ -1315,6 +1417,9 @@ function buildORForm(){
       <div class="fi"><label>NA</label><input class="ni" type="number" min="0" id="or-na" value="0"></div>
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="or-aid" value="0"></div>
     </div>
+  </div></div>
+  <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
+    <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="or-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
@@ -1356,12 +1461,15 @@ function buildWSForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="ws-aid" value="0"></div>
     </div>
   </div></div>
+  <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
+    <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
+  </div></div>
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="ws-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
 }
 
-// OPD + ตรวจรักษาพิเศษ (แบบเดียวกัน)
+// OPD + ตรวจรักษาพิเศษ
 function buildOpdClinicForm(){
   if(wasSent()) showStatus('✅ ส่ง Sheet แล้ว');
   const isSpClinic=curWard.dept==='ตรวจพิเศษ';
@@ -1382,8 +1490,11 @@ function buildOpdClinicForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="opd-aid" value="0"></div>
     </div>
   </div></div>
+  <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
+    <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
+  </div></div>
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
-    <textarea id="opd-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
+   <textarea id="opd-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
 }
 
@@ -1392,17 +1503,18 @@ function buildOpdClinicForm(){
 // ════════════════════════════════════════
 function collectData(){
   if(!curWard) return null;
-  const today=todayThai(); // รูปแบบเดียวกับ Dashboard filter
+  const today=todayThai();
   const now=new Date().toLocaleTimeString('th-TH');
   const shiftName={morning:'เวรเช้า',afternoon:'เวรบ่าย',night:'เวรดึก'}[curShift];
+  const recorder = $('recorder-name')?.value || '';
 
   if(curWard.isOPD){
     const appt=iv('opd-appt'),walkin=iv('opd-walkin');
     const rn=iv('opd-rn'),pn=iv('opd-pn'),other=iv('opd-other'),aid=iv('opd-aid');
     const sheetName=curWard.dept==='ตรวจพิเศษ'?'special_clinic':'opd_census';
     return{sheet:sheetName,
-      headers:['วันที่','เวลา','คลินิก','เวร','ผู้ป่วยนัด','Walk-in','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ'],
-      rows:[[today,now,curWard.name,shiftName==='special_clinic'?'ทั้งวัน':shiftName,appt,walkin,appt+walkin,rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'']]};
+      headers:['วันที่','เวลา','คลินิก','เวร','ผู้ป่วยนัด','Walk-in','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก'],
+      rows:[[today,now,curWard.name,shiftName==='special_clinic'?'ทั้งวัน':shiftName,appt,walkin,appt+walkin,rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder]]};
   }
 
   if(curWard.isSpecial){
@@ -1415,9 +1527,9 @@ function collectData(){
       const note=$('er-note')?.value||'';
       row=[today,now,n,shiftName,total,g('er-walkin'),obs,obsDc,obsRemain,red,pink,yellow,green,white,
         g('er-dc'),admit,g('er-ref'),g('er-dead'),g('er-hold'),g('er-rn'),g('er-pn'),g('er-na'),g('er-aid'),
-        total>0?Math.round((admit/total)*100)+'%':'0%',note];
-      return{sheet:'special_census',
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','ยอดรวม','Walk-in','Observe รับ','Observe DC','Observe คงค้าง','แดง','ชมพู','เหลือง','เขียว','ขาว','DC','Admit','Refer','DEAD','คงค้าง','RN','PN','NA','คนงาน','Admit Rate','หมายเหตุ'],rows:[row]};
+        total>0?Math.round((admit/total)*100)+'%':'0%',note,recorder];
+      return{sheet:'er_census',
+        headers:['วันที่','เวลา','หน่วยงาน','เวร','ยอดรวม','Walk-in','Observe รับ','Observe DC','Observe คงค้าง','แดง','ชมพู','เหลือง','เขียว','ขาว','DC','Admit','Refer','DEAD','คงค้าง','RN','PN','NA','คนงาน','Admit Rate','หมายเหตุ','ผู้บันทึก'],rows:[row]};
     }
     if(n==='ห้องคลอด'){
       const normal=g('cl-normal'),abn=g('cl-abn'),cs=g('cl-cs');
@@ -1430,21 +1542,21 @@ function collectData(){
         g('cl-ref'),g('cl-tr'),
         babyN,babyAbn,babyNicu,babyDead,stillbirth,
         g('cl-rn'),g('cl-tn'),g('cl-pn'),g('cl-aid'),
-        birth>0?Math.round((cs/birth)*100)+'%':'0%',note];
-      return{sheet:'special_census',
+        birth>0?Math.round((cs/birth)*100)+'%':'0%',note,recorder];
+      return{sheet:'cl_census',
         headers:['วันที่','เวลา','หน่วยงาน','เวร',
           'ยอดยกมา','รับใหม่','รอคลอด','OPD','Refer เข้า',
           'คลอดปกติ','คลอดผิดปกติ','C/S','คลอดรวม',
           'Refer ออก','ย้ายหอ',
           'ทารกปกติ','ทารกผิดปกติ','ทารก NICU','ทารกตาย','Stillbirth',
-          'RN','TN','PN','คนงาน','% C/S','หมายเหตุ'],rows:[row]};
+          'RN','TN','PN','คนงาน','% C/S','หมายเหตุ','ผู้บันทึก'],rows:[row]};
     }
     if(n==='ห้องผ่าตัด OR'){
       const el=g('or-elective'),em=g('or-emergency');
       const note=$('or-note')?.value||'';
-      row=[today,now,n,shiftName,el,em,g('or-cancel'),g('or-complex'),g('or-major'),g('or-minor'),g('or-proc'),g('or-rem'),g('or-rn'),g('or-pn'),g('or-na'),g('or-aid'),el+em,note];
-      return{sheet:'special_census',
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','Elective','Emergency','งด','ซับซ้อน','ใหญ่','เล็ก','หัตถการ','ยกไป','RN','PN','NA','คนงาน','รวมเคส','หมายเหตุ'],rows:[row]};
+      row=[today,now,n,shiftName,el,em,g('or-cancel'),g('or-complex'),g('or-major'),g('or-minor'),g('or-proc'),g('or-rem'),g('or-rn'),g('or-pn'),g('or-na'),g('or-aid'),el+em,note,recorder];
+      return{sheet:'or_census',
+        headers:['วันที่','เวลา','หน่วยงาน','เวร','Elective','Emergency','งด','ซับซ้อน','ใหญ่','เล็ก','หัตถการ','ยกไป','RN','PN','NA','คนงาน','รวมเคส','หมายเหตุ','ผู้บันทึก'],rows:[row]};
     }
     if(n==='งานวิสัญญี'){
       const ga=g('ws-ga'),sb=g('ws-sb'),mac=g('ws-mac');const caseTotal=ga+sb+mac;
@@ -1453,9 +1565,9 @@ function collectData(){
       const note=$('ws-note')?.value||'';
       row=[today,now,n,shiftName,caseTotal,ga,sb,mac,asaT,a1,a2,a3,a4,a5,a6,
         asaT>0?Math.round((high/asaT)*100)+'%':'0%',
-        g('ws-prev'),g('ws-wait'),g('ws-back'),g('ws-rem'),g('ws-rn'),g('ws-pn'),g('ws-na'),g('ws-aid'),note];
-      return{sheet:'special_census',
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','เคสรวม','GA','SB','MAC','ASA รวม','ASA1','ASA2','ASA3','ASA4','ASA5','ASA6','% High Risk','ยอดยกมา','รอ','ส่งกลับ','ยกไป','RN','PN','NA','คนงาน','หมายเหตุ'],rows:[row]};
+        g('ws-prev'),g('ws-wait'),g('ws-back'),g('ws-rem'),g('ws-rn'),g('ws-pn'),g('ws-na'),g('ws-aid'),note,recorder];
+      return{sheet:'ws_census',
+        headers:['วันที่','เวลา','หน่วยงาน','เวร','เคสรวม','GA','SB','MAC','ASA รวม','ASA1','ASA2','ASA3','ASA4','ASA5','ASA6','% High Risk','ยอดยกมา','รอ','ส่งกลับ','ยกไป','RN','PN','NA','คนงาน','หมายเหตุ','ผู้บันทึก'],rows:[row]};
     }
     return null;
   }
@@ -1464,10 +1576,15 @@ function collectData(){
   const p=iv('fp'),a=iv('fa'),d=iv('fd'),o=iv('fo'),i=iv('fi');
   const rn=iv('frn'),tn=iv('ftn'),pn=iv('fpn'),na=iv('fna'),aid=iv('faid');
   const c=Math.max(0,p+a-d-o+i);
-  const note=$('fnote')?.value||'';;
+  const note=$('fnote')?.value||'';
+  // ดึงค่า 4 ช่องใหม่
+  const cri=iv('ipd-cri'), gen=iv('ipd-gen'), spc=iv('ipd-spc'), vent=iv('ipd-vent');
+
   return{sheet:'ward_census',
-    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดต้น','รับเข้า','จำหน่าย','ย้ายออก','ย้ายเข้า','คงอยู่','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ'],
-    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note]]};
+    // เพิ่มหัวตาราง 4 ช่องใหม่ (ต่อท้าย คงอยู่)
+    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดต้น','รับเข้า','จำหน่าย','ย้ายออก','ย้ายเข้า','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก'],
+    // เพิ่มตัวแปร 4 ตัวลงในข้อมูล (ต่อท้าย c)
+    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder]]};
 }
 
 // ════════════════════════════════════════
@@ -1483,24 +1600,49 @@ async function sendAndSave(){
   if(saveBtn){saveBtn.style.opacity='.6';saveBtn.style.pointerEvents='none';saveBtn.innerHTML='⏳ กำลังส่ง...';}
   const ok=await postToSheet(url,payload);
   if(saveBtn){saveBtn.style.opacity='';saveBtn.style.pointerEvents='';saveBtn.innerHTML=origText;}
+  
   if(ok){
     markSent();
     showStatus(`✅ ส่งข้อมูล ${curWard.name} เข้า Google Sheet สำเร็จ`);
     showToast('✓ ส่งสำเร็จ','ok');
-    buildWardSelector();
+    backToSelector(); 
   } else {
     showToast('❌ ส่งไม่สำเร็จ — ตรวจสอบ URL หรืออินเทอร์เน็ต','err');
   }
 }
 
-async function postToSheet(url,payload){
-  const body=JSON.stringify(payload);
-  try{
-    const r=await Promise.race([fetch(url,{method:'POST',body,headers:{'Content-Type':'text/plain'}}),new Promise((_,rej)=>setTimeout(()=>rej(new Error('timeout')),8000))]);
-    if(r.ok||r.type==='opaque')return true;
-  }catch{}
-  try{await fetch(url,{method:'POST',mode:'no-cors',body});return true;}catch{}
-  try{await fetch(`${url}?payload=${encodeURIComponent(body)}`,{method:'GET',mode:'no-cors'});return true;}catch{}
+async function postToSheet(url, payload) {
+  const body = JSON.stringify(payload);
+  
+  const xhrResult = await new Promise(resolve => {
+    try {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Content-Type', 'text/plain;charset=utf-8');
+      xhr.timeout = 15000;
+      xhr.onload  = () => {
+         // 👇 เช็คสถานะจริงจากเซิร์ฟเวอร์ จะได้ไม่ขึ้นหลอกว่าสำเร็จถ้าข้อมูลไม่เข้า
+         if (xhr.status === 200 || xhr.status === 0) {
+            try {
+               const res = JSON.parse(xhr.responseText);
+               resolve(res.ok);
+            } catch(e) { resolve(true); }
+         } else {
+            resolve(false);
+         }
+      };
+      xhr.onerror = () => resolve(false);
+      xhr.ontimeout = () => resolve(false);
+      xhr.send(body);
+    } catch(ex) { resolve(false); }
+  });
+  if (xhrResult) return true;
+
+  try {
+    await fetch(url, {method:'POST', mode:'no-cors', body});
+    return true;
+  } catch(e) {}
+  
   return false;
 }
 
@@ -1513,8 +1655,7 @@ function updateGsChip(){
   const c=$('gsChip');c.className='gs-chip '+(ok?'on':'set');
 }
 function openGsModal(){
-  $('gsInput').value=localStorage.getItem('gs_url')||'';
-  // แสดงแบนเนอร์ถ้า URL ฝังในโค้ด
+  try{ $('gsInput').value=getLS('gs_url')||''; }catch(e){ $('gsInput').value=''; }
   const notice=$('embeddedUrlNotice');
   if(notice) notice.style.display=APPS_SCRIPT_URL?'block':'none';
   $('gsOverlay').classList.add('on');
@@ -1524,12 +1665,12 @@ function closeGsIf(e){if(e.target===$('gsOverlay'))closeGsModal();}
 function saveGsUrl(){
   const url=$('gsInput').value.trim();
   if(!url&&!APPS_SCRIPT_URL){showToast('กรุณาใส่ URL','err');return;}
-  if(url) localStorage.setItem('gs_url',url);
+  if(url) { setLS('gs_url',url); }
   updateGsChip();closeGsModal();
   loadAll(true);
 }
 function clearGsUrl(){
-  localStorage.removeItem('gs_url');
+  rmLS('gs_url');
   $('gsInput').value='';
   updateGsChip();
   showToast('ล้าง URL แล้ว');
@@ -1553,10 +1694,9 @@ function startAutoRefresh(){
   },1000);
 }
 
-// โหลดใหม่เมื่อผู้ใช้กลับมาที่หน้า
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden && gsUrl()){
-    countdownSec=1; // trigger refresh ทันที
+    countdownSec=1; 
   }
 });
 
