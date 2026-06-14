@@ -750,6 +750,9 @@ async function loadAll(showMsg=false){
 // ════════════════════════════════════════
 //  BUILD DASHBOARD
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+//  BUILD DASHBOARD
+// ════════════════════════════════════════
 function buildDashboard(){
   const shiftKeys={morning:['เวรเช้า','เช้า'],afternoon:['เวรบ่าย','บ่าย'],night:['เวรดึก','ดึก']};
   const keys=shiftKeys[curShift]||['เวรเช้า','เช้า'];
@@ -767,7 +770,6 @@ function buildDashboard(){
     return m;
   };
   
-  // โชว์ข้อมูลข้ามกะเวรได้เลยสำหรับ OPD
   const latestOfDay=(rows,unitKey)=>{
     const m={};
     (rows||[]).forEach(r=>{
@@ -780,8 +782,11 @@ function buildDashboard(){
   const latestRow=rows=>{
     if(!rows||!rows.length) return {};
     const filt=rows.filter(matchShift);
-    const src=filt.length?filt:rows;
-    return src.reduce((a,b)=>getTimeStr(b['เวลา'])>getTimeStr(a['เวลา'])?b:a, src[0]);
+    
+    // 👇 แก้ไขตรงนี้ครับ: ถ้าเวรนี้ยังไม่มีข้อมูล ให้ส่งค่าว่างกลับไปเลย (ยกเลิกแผนสำรอง)
+    if(!filt.length) return {}; 
+    
+    return filt.reduce((a,b)=>getTimeStr(b['เวลา'])>getTimeStr(a['เวลา'])?b:a, filt[0]);
   };
 
   const wardMap = latestOf(allWardRows,'หอผู้ป่วย');
