@@ -901,6 +901,21 @@ function buildSUCards(spMap){
   const clBirth=n2(cl['คลอดรวม'])||n2(cl['คลอดปกติ'])+n2(cl['คลอดผิดปกติ'])+n2(cl['C/S']);
   const babyN=n2(cl['ทารกปกติ']||0);
   const babyAbn=n2(cl['ทารกผิดปกติ']||0);
+
+  // 👇 ชุดคำสั่งดึงข้อมูล Stroke Unit เพิ่มเติม
+  const shiftKeys={morning:['เวรเช้า','เช้า'],afternoon:['เวรบ่าย','บ่าย'],night:['เวรดึก','ดึก']};
+  const keys=shiftKeys[curShift]||['เวรเช้า','เช้า'];
+  const matchShift=r=>{
+    const rv=String(r['เวร']||'').trim();
+    return rv==='' || rv==='ทั้งวัน' || keys.some(k=>rv===k||rv.includes(k));
+  };
+  // หาแถวของตึก Stroke ในเวรปัจจุบัน
+  const strokeRows = (allWardRows||[]).filter(matchShift).filter(r=>r['หอผู้ป่วย'] && r['หอผู้ป่วย'].includes('Stroke'));
+  const stroke = strokeRows.length ? strokeRows.reduce((a,b)=>getTimeStr(b['เวลา'])>getTimeStr(a['เวลา'])?b:a, strokeRows[0]) : {};
+  const strokeC = n2(stroke['คงอยู่']);
+  const sft = n2(stroke['Run SFT']);
+
+  // วาดการ์ดทั้ง 5 ใบลงหน้าจอ (เพิ่ม Stroke เป็นใบที่ 5 สีม่วง)
   el.innerHTML=`
   <div class="su-card">
     <div class="su-card-h"><span class="su-ico">🚨</span><span class="su-nm">ER</span></div>
@@ -933,6 +948,13 @@ function buildSUCards(spMap){
     <div class="su-stat"><span class="su-lbl">GA/SB/MAC</span><span class="su-val">${ws['GA']||0}/${ws['SB']||0}/${ws['MAC']||0}</span></div>
     <div class="su-stat"><span class="su-lbl">ASA 4-6</span><span class="su-val" style="color:var(--red)">${n2(ws['ASA4'])+n2(ws['ASA5'])+n2(ws['ASA6'])||'—'}</span></div>
     <div class="su-stat"><span class="su-lbl">% High Risk</span><span class="su-val">${ws['% High Risk']||'—'}</span></div>
+  </div>
+  <div class="su-card" style="background:#f5f3ff; border-color:#c4b5fd;">
+    <div class="su-card-h" style="border-bottom-color:#ddd6fe;"><span class="su-ico">🧠</span><span class="su-nm" style="color:#6d28d9;">Stroke Unit</span></div>
+    <div class="su-stat" style="border-bottom-color:#ede9fe;"><span class="su-lbl">ยอดผู้ป่วยคงอยู่</span><span class="su-val" style="color:var(--blue)">${strokeC||'—'}</span></div>
+    <div class="su-stat" style="border-bottom-color:#ede9fe;"><span class="su-lbl" style="color:#7c3aed;font-weight:700;">Run SFT</span><span class="su-val" style="color:#7c3aed;font-size:18px;">${sft||'0'}</span></div>
+    <div class="su-stat" style="border-bottom-color:#ede9fe;"><span class="su-lbl">รับเข้า</span><span class="su-val">${n2(stroke['รับเข้า'])||'—'}</span></div>
+    <div class="su-stat" style="border-bottom:none;"><span class="su-lbl">จำหน่าย</span><span class="su-val">${n2(stroke['จำหน่าย'])||'—'}</span></div>
   </div>`;
 }
 
@@ -1150,6 +1172,13 @@ function buildIPDForm(){
   if(wasSent()) showStatus('✅ ส่ง Sheet แล้วในเวรนี้ — กรอกใหม่แล้วส่งซ้ำได้');
   const rn=0,tn=0,pn=0,na=0,aid=0,p=0,a=0,d=0,o=0,i=0,c=0,occ_=0;
   const ocs_=oc(0);
+
+  // 👇 สร้างกล่อง Run SFT โชว์เฉพาะตอนกดเลือกตึก Stroke
+  let sftHtml = '';
+  if(curWard.name.includes('Stroke')){
+    sftHtml = `<div class="fi"><label style="color:#7c3aed">Run SFT</label><input class="ni" type="number" min="0" id="ipd-sft" value="0" style="border-color:#c4b5fd;background:#f5f3ff"></div>`;
+  }
+
   $('efBody').innerHTML=`
   <div class="mini-kpi3">
     <div class="mk mk-b"><div class="mv" id="mk-c">0</div><div class="ml">คงอยู่</div></div>
@@ -1185,6 +1214,14 @@ function buildIPDForm(){
       <div class="fi"><label style="color:var(--mut)">On Tube</label><input class="ni" type="number" min="0" id="ipd-vent" value="0"></div>
     </div>
   </div></div>
+
+  <div class="f-sec"><div class="f-sec-h" style="background:#f0fdf4;border-color:#bbf7d0"><span>📋</span><span class="ft" style="color:#166534">ข้อมูลเพิ่มเติม</span></div><div class="f-sec-b" style="background:#fbfefc">
+    <div class="ig3">
+      <div class="fi"><label style="color:#15803d">Pre-op</label><input class="ni" type="number" min="0" id="ipd-preop" value="0" style="border-color:#bbf7d0"></div>
+      <div class="fi"><label style="color:#15803d">Post-op</label><input class="ni" type="number" min="0" id="ipd-postop" value="0" style="border-color:#bbf7d0"></div>
+      ${sftHtml} </div>
+  </div></div>
+
   <div class="f-sec"><div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div><div class="f-sec-b">
     <div class="ig3" style="margin-bottom:8px">
       <div class="fi"><label>RN</label><input class="ni" type="number" min="0" id="frn" value="0" oninput="recalcIPD()"></div>
@@ -1546,10 +1583,15 @@ function collectData(){
   const note=$('fnote')?.value||'';
   
   const cri=iv('ipd-cri'), gen=iv('ipd-gen'), spc=iv('ipd-spc'), vent=iv('ipd-vent');
+  
+  // 👇 ดึงค่าตัวแปรใหม่ (ถ้าตึกไม่ใช่ Stroke จะดึงค่าไม่ได้ ก็ให้เป็น 0)
+  const preop=iv('ipd-preop'), postop=iv('ipd-postop'), sft=iv('ipd-sft');
 
   return{sheet:'ward_census',
-    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดต้น','รับเข้า','จำหน่าย','ย้ายออก','ย้ายเข้า','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก'],
-    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder]]};
+    // 👇 เพิ่มหัวตาราง 3 ช่องใหม่
+    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดต้น','รับเข้า','จำหน่าย','ย้ายออก','ย้ายเข้า','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','Pre-op','Post-op','Run SFT','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก'],
+    // 👇 เพิ่มตัวแปร 3 ตัวลงในข้อมูลให้ตรงกับหัวตาราง
+    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,preop,postop,sft,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder]]};
 }
 
 // ════════════════════════════════════════
