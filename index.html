@@ -830,7 +830,7 @@ function buildKPIs(wardMap,spMap,opdMap,scMap){
     if(beds>0){const pct=Math.round((c/beds)*100);occSum+=pct;occN++;if(pct>=100)alertN++;}
   });
   setT('kv-total',total||'—');
-  setT('kv-occ',occN>0?Math.round(occSum/occN)+'%':'—');
+  setT('kv-occ',total>0?Math.round((total/650)*100)+'%':'—');
   setT('kv-admit',admit||'—');
   setT('kv-dc',dc||'—');
   setT('kv-alert',alertN);
