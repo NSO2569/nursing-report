@@ -812,6 +812,7 @@ function buildDashboard(){
   }
 
   buildKPIs(wardMap,spMap,opdMap,scMap);
+  buildExecSummary(wardMap);
   buildAlerts(wardMap);
   buildShiftCompare();
   buildSUCards(spMap);
@@ -1784,6 +1785,99 @@ document.addEventListener('visibilitychange',()=>{
     countdownSec=1; 
   }
 });
+
+// ════════════════════════════════════════
+//  EXECUTIVE DASHBOARD (ภาพรวมกลุ่มงาน)
+// ════════════════════════════════════════
+function buildExecSummary(wardMap) {
+  // สร้างกล่องสำหรับใส่ Dashboard ผู้บริหารแทรกไว้ด้านบน
+  let execDiv = document.getElementById('execSummary');
+  if (!execDiv) {
+    execDiv = document.createElement('div');
+    execDiv.id = 'execSummary';
+    const occList = document.getElementById('occList'); // หากล่องรายชื่อตึกเดิม
+    if (occList && occList.parentNode) {
+      occList.parentNode.insertBefore(execDiv, occList); // แทรกไว้ด้านบน
+    } else {
+      return; 
+    }
+  }
+
+  // ฐานข้อมูลจับกลุ่มหอผู้ป่วย (พิมพ์เขียว)
+  const WARD_GROUPS = {
+    "กลุ่มอายุรกรรม": ["Stroke Unit", "Semi-critical 6", "Semi-critical 5", "พิเศษอายุรกรรม ชั้น 7", "พิเศษอายุรกรรม ชั้น 8", "อายุรกรรมหญิง 7", "อายุรกรรมชาย 8", "ภปร (บน)", "ภปร (ล่าง)", "สงฆ์-อายุรกรรม", "เคมีบำบัด", "สมเด็จย่า ชั้น 4"],
+    "กลุ่มงานศัลยกรรม": ["ศัลยกรรมทั่วไป ชั้น 5", "ศัลยกรรมหญิง", "ศัลยกรรมอุบัติเหตุ ชั้น 4", "สมเด็จย่า ชั้น 3", "พิเศษศัลยกรรม ชั้น 6", "พิเศษศัลยกรรม ชั้น 14"],
+    "กลุ่มงานกระดูก": ["ศัลยกรรมกระดูก ชั้น 2"],
+    "กลุ่มงานสูติ-นรีเวชกรรม": ["พิเศษสติ-นรีเวช", "สูติ-นรีเวชกรรม (สูติ 26/นรีเวช 10)"],
+    "กลุ่มงานกุมารเวชกรรม": ["พิเศษกุมารเวช", "กุมารเวชกรรม", "ทารกแรกเกิด"],
+    "กลุ่มงาน ICU": ["ICU ศัลยกรรม", "ICU อายุรกรรม", "CCU", "ICU กุมาร", "ทารกแรกเกิดวิกฤต"],
+    "กลุ่มงานจิตเวช": ["หอผู้ป่วยนนทรี", "มินิธัญญรักษ์"]
+  };
+
+  // สร้างหน้าตา UI
+  let html = `
+  <div class="f-sec" style="margin-bottom:16px; border:1px solid #bfdbfe; border-radius:var(--r2); background:#f8fafc; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <div class="f-sec-h" style="background:#eff6ff; border-bottom:1px solid #bfdbfe; padding:12px 16px;">
+      <span>📊</span><span class="ft" style="color:#1e3a8a; font-weight:700; font-size:16px;">ภาพรวมกลุ่มงานการพยาบาล (Executive View)</span>
+    </div>
+    <div class="f-sec-b" style="padding:16px; display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));">
+  `;
+
+  let hasData = false;
+
+  // วนลูปคำนวณยอดรวมแต่ละกลุ่ม
+  for (const [groupName, wards] of Object.entries(WARD_GROUPS)) {
+    let totalCensus = 0, totalBeds = 0, totalAdmit = 0, totalDc = 0, count = 0;
+    wards.forEach(w => {
+      const r = wardMap[w];
+      if (r) {
+        totalCensus += n2(r['คงอยู่']);
+        totalBeds += n2(r['เตียง']) || WARD_BEDS[w] || 0;
+        totalAdmit += n2(r['รับเข้า']);
+        totalDc += n2(r['จำหน่าย']);
+        count++;
+      }
+    });
+
+    // สร้างการ์ดเฉพาะกลุ่มที่มีคนส่งยอดเข้ามาแล้วในเวรนี้
+    if (count > 0) {
+      hasData = true;
+      const pct = totalBeds > 0 ? Math.round((totalCensus / totalBeds) * 100) : 0;
+      const color = pct >= 100 ? '#e11d48' : (pct >= 85 ? '#ea580c' : '#059669'); // แดง / ส้ม / เขียว
+      const bg = pct >= 100 ? '#fff1f2' : (pct >= 85 ? '#fff7ed' : '#ecfdf5');
+      const borderColor = pct >= 100 ? '#fecdd3' : (pct >= 85 ? '#ffedd5' : '#d1fae5');
+
+      html += `
+      <div style="border:1px solid ${borderColor}; border-radius:8px; padding:14px; background:${bg};">
+        <div style="font-weight:700; color:#0f172a; margin-bottom:10px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">
+          <span>${groupName}</span>
+          <span style="font-size:11px; font-weight:normal; color:#64748b; background:#fff; padding:2px 6px; border-radius:12px; border:1px solid #e2e8f0;">ส่งยอดแล้ว ${count} ตึก</span>
+        </div>
+        
+        <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:6px; color:#334155; font-weight:600;">
+          <span>อัตราครองเตียง</span>
+          <span style="color:${color}; font-size:14px;">${pct}%</span>
+        </div>
+        
+        <div style="width:100%; height:8px; background:#e2e8f0; border-radius:4px; margin-bottom:12px; overflow:hidden;">
+          <div style="width:${Math.min(pct, 100)}%; height:100%; background:${color}; border-radius:4px; transition: width 0.5s;"></div>
+        </div>
+        
+        <div style="display:flex; justify-content:space-between; font-size:12px; color:#475569; border-top:1px dashed ${borderColor}; padding-top:8px;">
+          <span>👥 คงอยู่: <b style="color:#0f172a;">${totalCensus}/${totalBeds}</b></span>
+          <span>🔄 รับ <b style="color:#2563eb;">${totalAdmit}</b> | จำหน่าย <b style="color:#16a34a;">${totalDc}</b></span>
+        </div>
+      </div>`;
+    }
+  }
+
+  if(!hasData){
+      html += `<div style="color:#64748b; font-size:13px; text-align:center; width:100%;">กำลังรอการรายงานข้อมูลหอผู้ป่วยในเวรนี้...</div>`;
+  }
+
+  html += `</div></div>`;
+  execDiv.innerHTML = html;
+}
 
 // ════════════════════════════════════════
 //  INIT
