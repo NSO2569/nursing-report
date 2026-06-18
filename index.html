@@ -289,7 +289,7 @@ body{font-family:'Sarabun',sans-serif;background:var(--bg);color:var(--txt);font
     <div class="kc kg"><div class="kl">ครองเตียงเฉลี่ย</div><div class="kn" id="kv-occ">—</div><div class="ks">ทั้งโรงพยาบาล</div></div>
   </div>
   <div class="kpi3">
-    <div class="kc ka"><div class="kl">รับเข้า</div><div class="kn" id="kv-admit">—</div><div class="ks">เวรนี้</div></div>
+    <div class="kc ka"><div class="kl">รับใหม่</div><div class="kn" id="kv-admit">—</div><div class="ks">เวรนี้</div></div>
     <div class="kc"><div class="kl">จำหน่าย</div><div class="kn" id="kv-dc">—</div><div class="ks">D/C</div></div>
     <div class="kc kr"><div class="kl">⚠️ เตียงล้น</div><div class="kn" id="kv-alert">—</div><div class="ks">หอ ≥100%</div></div>
   </div>
@@ -519,7 +519,7 @@ function buildResponse(json) {
 //  DATA CONFIG
 // ════════════════════════════════════════
 const WARDS=[
-  {dept:'สูติ',name:'พิเศษสติ-นรีเวช',beds:19},
+  {dept:'สูติ',name:'พิเศษสูติ-นรีเวช',beds:19},
   {dept:'สูติ',name:'สูติ-นรีเวชกรรม (สูติ 26/นรีเวช 10)',beds:36},
   {dept:'ศัลย',name:'ศัลยกรรมทั่วไป ชั้น 5',beds:40},
   {dept:'ศัลย',name:'ศัลยกรรมหญิง',beds:30},
@@ -528,7 +528,7 @@ const WARDS=[
   {dept:'ศัลย',name:'พิเศษศัลยกรรม ชั้น 6',beds:15},
   {dept:'ศัลย',name:'พิเศษศัลยกรรม ชั้น 14',beds:18},
   {dept:'จักษุ',name:'จักษุ หู คอ จมูก (จักษุ 17/หู คอ จมูก 8)',beds:25},
-  {dept:'กระดูก',name:'ศัลยกรรมกระดูก ชั้น 2',beds:30},
+  {dept:'กระดูก',name:'ศัลยกรรมกระดูก ชั้น 2',beds:35},
   {dept:'อายุร',name:'Semi-critical 5',beds:24},
   {dept:'อายุร',name:'Semi-critical 6',beds:24},
   {dept:'อายุร',name:'อายุรกรรมหญิง 7',beds:40},
@@ -852,14 +852,29 @@ function buildDashboard(){
 
 function buildKPIs(wardMap,spMap,opdMap,scMap){
   let total=0,admit=0,dc=0,occSum=0,occN=0,alertN=0;
+  
+  // 👇 1. ตั้งกล่องเก็บยอดผู้ป่วยที่ "ไม่รวม ICU"
+  let ipdTotal_NoICU = 0;
+
   Object.values(wardMap).forEach(r=>{
     const c=n2(r['คงอยู่']);
-    const beds=n2(r['เตียง'])||WARD_BEDS[r['หอผู้ป่วย']]||0;
-    total+=c; admit+=n2(r['รับเข้า']); dc+=n2(r['จำหน่าย']);
+    const wName=r['หอผู้ป่วย']||'';
+    const beds=n2(r['เตียง'])||WARD_BEDS[wName]||0;
+    
+    total+=c; admit+=n2(r['รับใหม่']); dc+=n2(r['จำหน่าย']);
     if(beds>0){const pct=Math.round((c/beds)*100);occSum+=pct;occN++;if(pct>=100)alertN++;}
+
+    // 👇 2. เครื่องสแกน: ถ้าชื่อหอผู้ป่วย "ไม่มี" คำว่า ICU หรือ วิกฤต ให้เอายอดมาบวก
+    if(!wName.toUpperCase().includes('ICU') && !wName.includes('วิกฤต')) {
+       ipdTotal_NoICU += c;
+    }
   });
+
   setT('kv-total',total||'—');
-  setT('kv-occ',total>0?Math.round((total/650)*100)+'%':'—');
+  
+  // 👇 3. เอาเฉพาะยอดที่หัก ICU ออกแล้ว มาหารด้วย 650 เตียง
+  setT('kv-occ', ipdTotal_NoICU > 0 ? Math.round((ipdTotal_NoICU / 650) * 100) + '%' : '—');
+  
   setT('kv-admit',admit||'—');
   setT('kv-dc',dc||'—');
   setT('kv-alert',alertN);
@@ -913,7 +928,8 @@ function buildShiftCompare(){
     const wm={};
     rows.forEach(r=>{const w=r['หอผู้ป่วย'];if(!w)return;if(!wm[w]||getTimeStr(r['เวลา'])>getTimeStr(wm[w]['เวลา']))wm[w]=r;});
     let a=0,d=0,census=0;
-    Object.values(wm).forEach(r=>{a+=n2(r['รับเข้า']);d+=n2(r['จำหน่าย']);census+=n2(r['คงอยู่']);});
+    // 👇 แก้ 'รับเข้า' เป็น 'รับใหม่' ตรงบรรทัดนี้ครับ
+    Object.values(wm).forEach(r=>{a+=n2(r['รับใหม่']);d+=n2(r['จำหน่าย']);census+=n2(r['คงอยู่']);});
     const ct=Object.keys(wm).length;
     return `<div class="sc-it ${sh.cl}">
       <span class="sv">${census||'—'}</span>
@@ -990,8 +1006,9 @@ function buildSUCards(spMap){
     <div class="su-card-h" style="border-bottom-color:#ddd6fe;"><span class="su-ico">🧠</span><span class="su-nm" style="color:#6d28d9;">Stroke Unit</span></div>
     <div class="su-stat" style="border-bottom-color:#ede9fe;"><span class="su-lbl">ยอดผู้ป่วยคงอยู่</span><span class="su-val" style="color:var(--blue)">${strokeC||'—'}</span></div>
     <div class="su-stat" style="border-bottom-color:#ede9fe;"><span class="su-lbl" style="color:#7c3aed;font-weight:700;">Run SFT</span><span class="su-val" style="color:#7c3aed;font-size:18px;">${sft||'0'}</span></div>
-    <div class="su-stat" style="border-bottom-color:#ede9fe;"><span class="su-lbl">รับเข้า</span><span class="su-val">${n2(stroke['รับเข้า'])||'—'}</span></div>
-    <div class="su-stat" style="border-bottom:none;"><span class="su-lbl">จำหน่าย</span><span class="su-val">${n2(stroke['จำหน่าย'])||'—'}</span></div>
+    <div class="su-stat" style="border-bottom-color:#ede9fe;"><span class="su-lbl">รับใหม่</span><span class="su-val">${n2(stroke['รับใหม่'])||'—'}</span></div>
+    <div class="su-stat" style="border-bottom-color:#ede9fe;"><span class="su-lbl">จำหน่าย</span><span class="su-val">${n2(stroke['จำหน่าย'])||'—'}</span></div>
+    <div class="su-stat" style="border-bottom:none; background:#e0f2fe; padding: 4px 8px; border-radius: 4px; margin-top: 4px;"><span class="su-lbl" style="color:#0369a1;font-weight:700;">💼 รวมพยาบาล</span><span class="su-val" style="color:#0369a1;font-weight:700;">${(n2(stroke['ยอดยกมา']) + n2(stroke['รับใหม่']) + n2(stroke['รับย้าย'])) || '0'}</span></div>
   </div>`;
 }
 
@@ -1014,13 +1031,19 @@ function buildOccList(wardMap){
   const el=$('occList');if(!el)return;
   const items=Object.values(wardMap).map(r=>{
     const c=n2(r['คงอยู่']);const beds=n2(r['เตียง'])||WARD_BEDS[r['หอผู้ป่วย']]||0;
-    return{name:r['หอผู้ป่วย'],c,beds,pct:beds>0?Math.round((c/beds)*100):0};
+    // สูตรคำนวณ ยอดยกมา + รับใหม่ + รับย้าย
+    const totalCare = n2(r['ยอดยกมา']) + n2(r['รับใหม่']) + n2(r['รับย้าย']);
+    
+    return{name:r['หอผู้ป่วย'],c,beds,pct:beds>0?Math.round((c/beds)*100):0, totalCare};
   }).filter(it=>it.beds>0).sort((a,b)=>b.pct-a.pct);
+  
   setT('ward-ct-badge',items.length+' หอ');
   if(!items.length){el.innerHTML='<div class="empty-state"><div class="ei">🛏</div><p>ยังไม่มีข้อมูลวันนี้<br><small>รอแต่ละหอส่งข้อมูล</small></p></div>';return;}
+  
   el.innerHTML=items.map(it=>`
     <div class="occ-item">
-      <div class="occ-row"><span class="occ-name">${it.name}</span>
+      <div class="occ-row">
+        <span class="occ-name">${it.name} <span style="font-size:0.85em; color:#0369a1; background:#e0f2fe; padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:normal; border: 1px solid #bae6fd;">💼 รวมพยาบาล: ${it.totalCare}</span></span>
         <div class="occ-nums"><span>${it.c}/${it.beds}</span><span class="occ-pct" style="color:${oc(it.pct)}">${it.pct}%</span></div>
       </div>
       <div class="occ-track"><div class="occ-fill" style="width:${Math.min(it.pct,100)}%;background:${oc(it.pct)}"></div></div>
@@ -1131,7 +1154,7 @@ async function loadMonthly(){
     const w=r['หอผู้ป่วย'];if(!w) return;
     if(!wardSum[w]) wardSum[w]={ward:w,admit:0,dc:0,days:new Set(),totalCensus:0,count:0, beds:0};
     
-    wardSum[w].admit+=n2(r['รับเข้า']);
+    wardSum[w].admit+=n2(r['รับใหม่']);
     wardSum[w].dc+=n2(r['จำหน่าย']);
     wardSum[w].totalCensus+=n2(r['คงอยู่']);
     wardSum[w].count++;
@@ -1308,13 +1331,13 @@ function buildIPDForm(){
 
   <div class="f-sec"><div class="f-sec-h"><span>📊</span><span class="ft">ยอดผู้ป่วย</span></div><div class="f-sec-b">
     <div class="ig2" style="margin-bottom:9px">
-      <div class="fi"><label>ยอดต้น</label><input class="ni" type="number" min="0" id="fp" value="0" oninput="recalcIPD()"></div>
-      <div class="fi"><label>รับเข้า</label><input class="ni" type="number" min="0" id="fa" value="0" oninput="recalcIPD()"></div>
+      <div class="fi"><label>ยอดยกมา</label><input class="ni" type="number" min="0" id="fp" value="0" oninput="recalcIPD()"></div>
+      <div class="fi"><label>รับใหม่</label><input class="ni" type="number" min="0" id="fa" value="0" oninput="recalcIPD()"></div>
     </div>
     <div class="ig3" style="margin-bottom:10px">
       <div class="fi"><label>จำหน่าย</label><input class="ni" type="number" min="0" id="fd" value="0" oninput="recalcIPD()"></div>
       <div class="fi"><label>ย้ายออก</label><input class="ni" type="number" min="0" id="fo" value="0" oninput="recalcIPD()"></div>
-      <div class="fi"><label>ย้ายเข้า</label><input class="ni" type="number" min="0" id="fi" value="0" oninput="recalcIPD()"></div>
+      <div class="fi"><label>รับย้าย</label><input class="ni" type="number" min="0" id="fi" value="0" oninput="recalcIPD()"></div>
     </div>
     <div class="res-box">
       <div class="rb"><div class="rv ok" id="rv-c">0</div><div class="rl">คงอยู่</div></div>
@@ -1339,7 +1362,11 @@ function buildIPDForm(){
     <div class="ig3">
       <div class="fi"><label style="color:#15803d">Pre-op</label><input class="ni" type="number" min="0" id="ipd-preop" value="0" style="border-color:#bbf7d0"></div>
       <div class="fi"><label style="color:#15803d">Post-op</label><input class="ni" type="number" min="0" id="ipd-postop" value="0" style="border-color:#bbf7d0"></div>
-      ${sftHtml} </div>
+      ${sftHtml} 
+      ${(curWard.name && curWard.name.includes('สูติ')) ? `
+      <div class="fi"><label style="color:#ea580c">👶 ยอดทารก</label><input class="ni" type="number" min="0" id="ipd-newborn" value="0" style="border-color:#fed7aa"></div>
+      ` : ''}
+    </div>
   </div></div>
 
   <div class="f-sec"><div class="f-sec-h"><span>👩‍⚕️</span><span class="ft">อัตรากำลัง</span></div><div class="f-sec-b">
@@ -1363,8 +1390,7 @@ function buildIPDForm(){
   
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="fnote" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
-  </div></div>`;
-}
+  </div></div>`;}
 
 function recalcIPD(){
   const p=iv('fp'),a=iv('fa'),d=iv('fd'),o=iv('fo'),i=iv('fi');
@@ -1400,7 +1426,7 @@ function buildERForm(){
   <div class="f-sec"><div class="f-sec-h"><span>📊</span><span class="ft">ยอดบริการรวม</span></div><div class="f-sec-b">
     <div class="ig2">
       <div class="fi"><label>ยอดรวม ER</label><input class="ni" type="number" min="0" id="er-total" value="0"></div>
-      <div class="fi"><label>Walk-in / Ambulance</label><input class="ni" type="number" min="0" id="er-walkin" value="0"></div>
+      <div class="fi"><label>EMS</label><input class="ni" type="number" min="0" id="er-walkin" value="0"></div>
     </div>
   </div></div>
   <div class="f-sec"><div class="f-sec-h" style="background:#fff7ed;border-color:#fed7aa"><span>🛏</span><span class="ft" style="color:#92400e">ห้อง Observe</span></div><div class="f-sec-b" style="background:#fffbf5">
@@ -1552,7 +1578,7 @@ function buildWSForm(){
   <div class="f-sec"><div class="f-sec-h"><span>💉</span><span class="ft">ประเภทระงับความรู้สึก</span></div><div class="f-sec-b">
     <div class="ig3">
       <div class="fi"><label>GA (ดมยา)</label><input class="ni" type="number" min="0" id="ws-ga" value="0"></div>
-      <div class="fi"><label>SB (ไขสันหลัง)</label><input class="ni" type="number" min="0" id="ws-sb" value="0"></div>
+      <div class="fi"><label>RA</label><input class="ni" type="number" min="0" id="ws-sb" value="0"></div>
       <div class="fi"><label>MAC</label><input class="ni" type="number" min="0" id="ws-mac" value="0"></div>
     </div>
   </div></div>
@@ -1641,20 +1667,21 @@ function collectData(){
       rows:[[today,now,curWard.name,sheetName==='special_clinic'?'ทั้งวัน':shiftName,appt,walkin,appt+walkin,rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder]]};
   }
 
-  if(curWard.isSpecial){
-    const n=curWard.name;
-    let row;
-    if(n==='ห้องฉุกเฉิน ER'){
-      const total=g('er-total'),admit=g('er-adm');
-      const red=g('er-red'),pink=g('er-pink'),yellow=g('er-yellow'),green=g('er-green'),white=g('er-white');
-      const obs=g('er-obs'),obsDc=g('er-obs-dc'),obsRemain=g('er-obs-remain');
-      const note=$('er-note')?.value||'';
-      row=[today,now,n,shiftName,total,g('er-walkin'),obs,obsDc,obsRemain,red,pink,yellow,green,white,
-        g('er-dc'),admit,g('er-ref'),g('er-dead'),g('er-hold'),g('er-rn'),g('er-pn'),g('er-na'),g('er-aid'),
-        total>0?Math.round((admit/total)*100)+'%':'0%',note,recorder];
-      return{sheet:'er_census',
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','ยอดรวม','Walk-in','Observe รับ','Observe DC','Observe คงค้าง','แดง','ชมพู','เหลือง','เขียว','ขาว','DC','Admit','Refer','DEAD','คงค้าง','RN','PN','NA','คนงาน','Admit Rate','หมายเหตุ','ผู้บันทึก'],rows:[row]};
-    }
+ if(curWard.isSpecial){
+      const n=curWard.name;
+      let row;
+      if(n==='ห้องฉุกเฉิน ER'){
+        const total=g('er-total'),admit=g('er-adm');
+        const red=g('er-red'),pink=g('er-pink'),yellow=g('er-yellow'),green=g('er-green'),white=g('er-white');
+        const obs=g('er-obs'),obsDc=g('er-obs-dc'),obsRemain=g('er-obs-remain');
+        const note=$('er-note')?.value||'';
+        row=[today,now,n,shiftName,total,g('er-walkin'),obs,obsDc,obsRemain,red,pink,yellow,green,white,
+          g('er-dc'),admit,g('er-ref'),g('er-dead'),g('er-hold'),g('er-rn'),g('er-pn'),g('er-na'),g('er-aid'),
+          total>0?Math.round((admit/total)*100)+'%':'0%',note,recorder];
+        return{sheet:'er_census',
+          // 👇 สังเกตตรงนี้ครับ วิศวกรเปลี่ยนจาก 'Walk-in' เป็น 'EMS' ให้แล้วครับ
+          headers:['วันที่','เวลา','หน่วยงาน','เวร','ยอดรวม','EMS','Observe รับ','Observe DC','Observe คงค้าง','แดง','ชมพู','เหลือง','เขียว','ขาว','DC','Admit','Refer','DEAD','คงค้าง','RN','PN','NA','คนงาน','Admit Rate','หมายเหตุ','ผู้บันทึก'],rows:[row]};
+      }
     if(n==='ห้องคลอด'){
       const normal=g('cl-normal'),abn=g('cl-abn'),cs=g('cl-cs');
       const birth=normal+abn+cs;
@@ -1683,15 +1710,17 @@ function collectData(){
         headers:['วันที่','เวลา','หน่วยงาน','เวร','Elective','Emergency','งด','ซับซ้อน','ใหญ่','เล็ก','หัตถการ','ยกไป','RN','PN','NA','คนงาน','รวมเคส','หมายเหตุ','ผู้บันทึก'],rows:[row]};
     }
     if(n==='งานวิสัญญี'){
-      const ga=g('ws-ga'),sb=g('ws-sb'),mac=g('ws-mac');const caseTotal=ga+sb+mac;
+      // 👇 วิศวกรปรับตัวแปรตรงนี้ให้เป็น ra ครับ (แต่ยังดึงจากกล่องเดิม)
+      const ga=g('ws-ga'),ra=g('ws-sb'),mac=g('ws-mac');const caseTotal=ga+ra+mac;
       const a1=g('ws-asa1'),a2=g('ws-asa2'),a3=g('ws-asa3'),a4=g('ws-asa4'),a5=g('ws-asa5'),a6=g('ws-asa6');
       const asaT=a1+a2+a3+a4+a5+a6;const high=a4+a5+a6;
       const note=$('ws-note')?.value||'';
-      row=[today,now,n,shiftName,caseTotal,ga,sb,mac,asaT,a1,a2,a3,a4,a5,a6,
+      row=[today,now,n,shiftName,caseTotal,ga,ra,mac,asaT,a1,a2,a3,a4,a5,a6,
         asaT>0?Math.round((high/asaT)*100)+'%':'0%',
         g('ws-prev'),g('ws-wait'),g('ws-back'),g('ws-rem'),g('ws-rn'),g('ws-pn'),g('ws-na'),g('ws-aid'),note,recorder];
       return{sheet:'ws_census',
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','เคสรวม','GA','SB','MAC','ASA รวม','ASA1','ASA2','ASA3','ASA4','ASA5','ASA6','% High Risk','ยอดยกมา','รอ','ส่งกลับ','ยกไป','RN','PN','NA','คนงาน','หมายเหตุ','ผู้บันทึก'],rows:[row]};
+        // 👇 เปลี่ยน 'SB' เป็น 'RA' ในบรรทัด headers นี้เรียบร้อยครับ
+        headers:['วันที่','เวลา','หน่วยงาน','เวร','เคสรวม','GA','RA','MAC','ASA รวม','ASA1','ASA2','ASA3','ASA4','ASA5','ASA6','% High Risk','ยอดยกมา','รอ','ส่งกลับ','ยกไป','RN','PN','NA','คนงาน','หมายเหตุ','ผู้บันทึก'],rows:[row]};
     }
     return null;
   }
@@ -1704,14 +1733,16 @@ function collectData(){
   
   const cri=iv('ipd-cri'), gen=iv('ipd-gen'), spc=iv('ipd-spc'), vent=iv('ipd-vent');
   
-  // 👇 ดึงค่าตัวแปรใหม่ (ถ้าตึกไม่ใช่ Stroke จะดึงค่าไม่ได้ ก็ให้เป็น 0)
   const preop=iv('ipd-preop'), postop=iv('ipd-postop'), sft=iv('ipd-sft');
+  // 👇 ดึงค่าทารกมาครับ (ถ้าตึกไหนไม่มีช่องนี้ มันจะคืนค่าเป็น 0 ให้อัตโนมัติ ปลอดภัยครับ)
+  const newborn = iv('ipd-newborn');
 
   return{sheet:'ward_census',
-    // 👇 เพิ่มหัวตาราง 3 ช่องใหม่
-    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดต้น','รับเข้า','จำหน่าย','ย้ายออก','ย้ายเข้า','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','Pre-op','Post-op','Run SFT','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก'],
-    // 👇 เพิ่มตัวแปร 3 ตัวลงในข้อมูลให้ตรงกับหัวตาราง
-    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,preop,postop,sft,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder]]};
+    // 👇 เพิ่มหัวตาราง 'ทารก' ต่อท้ายเข้าไปครับ
+    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดยกมา','รับใหม่','จำหน่าย','ย้ายออก','รับย้าย','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','Pre-op','Post-op','Run SFT','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก','ทารก'],
+    
+    // 👇 เพิ่มค่า newborn ต่อท้ายเข้าไปให้ตรงตำแหน่งกับหัวตารางครับ
+    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,preop,postop,sft,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder,newborn]]};
 }
 
 // ════════════════════════════════════════
@@ -1873,7 +1904,7 @@ function buildExecSummary(wardMap) {
     "กลุ่มอายุรกรรม": ["Stroke Unit", "Semi-critical 6", "Semi-critical 5", "พิเศษอายุรกรรม ชั้น 7", "พิเศษอายุรกรรม ชั้น 8", "อายุรกรรมหญิง 7", "อายุรกรรมชาย 8", "ภปร (บน)", "ภปร (ล่าง)", "สงฆ์-อายุรกรรม", "เคมีบำบัด", "สมเด็จย่า ชั้น 4"],
     "กลุ่มงานศัลยกรรม": ["ศัลยกรรมทั่วไป ชั้น 5", "ศัลยกรรมหญิง", "ศัลยกรรมอุบัติเหตุ ชั้น 4", "สมเด็จย่า ชั้น 3", "พิเศษศัลยกรรม ชั้น 6", "พิเศษศัลยกรรม ชั้น 14"],
     "กลุ่มงานกระดูก": ["ศัลยกรรมกระดูก ชั้น 2"],
-    "กลุ่มงานสูติ-นรีเวชกรรม": ["พิเศษสติ-นรีเวช", "สูติ-นรีเวชกรรม (สูติ 26/นรีเวช 10)"],
+    "กลุ่มงานสูติ-นรีเวชกรรม": ["พิเศษสูติ-นรีเวช", "สูติ-นรีเวชกรรม (สูติ 26/นรีเวช 10)"],
     "กลุ่มงานกุมารเวชกรรม": ["พิเศษกุมารเวช", "กุมารเวชกรรม", "ทารกแรกเกิด"],
     "กลุ่มงาน ICU": ["ICU ศัลยกรรม", "ICU อายุรกรรม", "CCU", "ICU กุมาร", "ทารกแรกเกิดวิกฤต"],
     "กลุ่มงานจิตเวช": ["หอผู้ป่วยนนทรี", "มินิธัญญรักษ์"]
