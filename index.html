@@ -1018,7 +1018,10 @@ function buildSUCards(spMap){
     <div class="su-card-h"><span class="su-ico">💉</span><span class="su-nm">วิสัญญี</span></div>
     <div class="su-stat"><span class="su-lbl">เคสรวม</span><span class="su-val" style="color:#4c1d95">${ws['เคสรวม']||'—'}</span></div>
     <div class="su-stat"><span class="su-lbl">GA/SB/MAC</span><span class="su-val">${ws['GA']||0}/${ws['SB']||0}/${ws['MAC']||0}</span></div>
-    <div class="su-stat"><span class="su-lbl">ASA 4-6</span><span class="su-val" style="color:var(--red)">${n2(ws['ASA4'])+n2(ws['ASA5'])+n2(ws['ASA6'])||'—'}</span></div>
+    
+    <!-- 👇 บรรทัดที่แก้: เปลี่ยนป้ายเป็น ASA 3-6 และเพิ่ม n2(ws['ASA3']) เข้าไปบวก 👇 -->
+    <div class="su-stat"><span class="su-lbl">ASA 3-6</span><span class="su-val" style="color:var(--red)">${n2(ws['ASA3'])+n2(ws['ASA4'])+n2(ws['ASA5'])+n2(ws['ASA6'])||'—'}</span></div>
+    
     <div class="su-stat"><span class="su-lbl">% High Risk</span><span class="su-val">${ws['% High Risk']||'—'}</span></div>
   </div>
   <div class="su-card" style="background:#f5f3ff; border-color:#c4b5fd;">
@@ -1049,11 +1052,15 @@ function buildOpdSummaryCard(opdMap,scMap){
 function buildOccList(wardMap){
   const el=$('occList');if(!el)return;
   const items=Object.values(wardMap).map(r=>{
-    const c=n2(r['คงอยู่']);const beds=n2(r['เตียง'])||WARD_BEDS[r['หอผู้ป่วย']]||0;
-    // สูตรคำนวณ ยอดยกมา + รับใหม่ + รับย้าย
-    const totalCare = n2(r['ยอดยกมา']) + n2(r['รับใหม่']) + n2(r['รับย้าย']);
+    const c=n2(r['คงอยู่']);
+    const beds=n2(r['เตียง'])||WARD_BEDS[r['หอผู้ป่วย']]||0;
     
-    return{name:r['หอผู้ป่วย'],c,beds,pct:beds>0?Math.round((c/beds)*100):0, totalCare};
+    // 📌 แก้ไข: สูตรคำนวณเคสรวมผู้ป่วย (ยอดยกมา + รับใหม่ + รับย้าย)
+    const totalPatients = n2(r['ยอดยกมา']) + n2(r['รับใหม่']) + n2(r['รับย้าย']);
+    // 📌 ดึงค่า OPD Case (ถ้าไม่มีตึกนั้นจะคืนค่า 0)
+    const opdCase = n2(r['OPD Case']);
+    
+    return{name:r['หอผู้ป่วย'], c, beds, pct:beds>0?Math.round((c/beds)*100):0, totalPatients, opdCase};
   }).filter(it=>it.beds>0).sort((a,b)=>b.pct-a.pct);
   
   setT('ward-ct-badge',items.length+' หอ');
@@ -1062,13 +1069,15 @@ function buildOccList(wardMap){
   el.innerHTML=items.map(it=>`
     <div class="occ-item">
       <div class="occ-row">
-        <span class="occ-name">${it.name} <span style="font-size:0.85em; color:#0369a1; background:#e0f2fe; padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:normal; border: 1px solid #bae6fd;">💼 รวมพยาบาล: ${it.totalCare}</span></span>
+        <span class="occ-name">${it.name} 
+          <span style="font-size:0.85em; color:#0369a1; background:#e0f2fe; padding:2px 8px; border-radius:12px; margin-left:8px; font-weight:normal; border: 1px solid #bae6fd;">รวมเคส: ${it.totalPatients}</span>
+          ${it.opdCase > 0 ? `<span style="font-size:0.85em; color:#c2410c; background:#ffedd5; padding:2px 8px; border-radius:12px; margin-left:5px; font-weight:normal; border: 1px solid #fdba74;">OPD: ${it.opdCase}</span>` : ''}
+        </span>
         <div class="occ-nums"><span>${it.c}/${it.beds}</span><span class="occ-pct" style="color:${oc(it.pct)}">${it.pct}%</span></div>
       </div>
       <div class="occ-track"><div class="occ-fill" style="width:${Math.min(it.pct,100)}%;background:${oc(it.pct)}"></div></div>
     </div>`).join('');
 }
-
 function buildStaffPage(wardMap,spMap,opdMap,scMap){
   const sl=$('staffList');
   if(sl){
@@ -1112,7 +1121,6 @@ function buildStaffPage(wardMap,spMap,opdMap,scMap){
 
 function buildOpdPage(opdMap,scMap){
   // 🚑 1. วาดแบนเนอร์ศูนย์ส่งต่อ (Referral Center)
-  // กรองเวร แล้วเอาแถวที่มีเวลาล่าสุด (ไม่ใช่แค่แถวสุดท้ายของ array)
   const shiftKeysRef={morning:['เวรเช้า','เช้า'],afternoon:['เวรบ่าย','บ่าย'],night:['เวรดึก','ดึก']};
   const keysRef=shiftKeysRef[curShift]||['เวรเช้า','เช้า'];
   const referFiltered=(allReferRows||[]).filter(r=>{
@@ -1126,6 +1134,8 @@ function buildOpdPage(opdMap,scMap){
   const refIn = n2(latestRefer['Refer In'] || 0);
   const refOut = n2(latestRefer['Refer Out'] || 0);
   const refBack = n2(latestRefer['Refer Back'] || 0);
+  const refRec = n2(latestRefer['Receive'] || 0); // 👈 เพิ่ม Receive
+  const refBackSSO = n2(latestRefer['รับกลับตามสิทธิ ปกส.'] || 0); // 👈 เพิ่ม ปกส.
   const pending = n2(latestRefer['ค้าง Refer'] || 0);
   const car1 = n2(latestRefer['รถคันที่ 1'] || 0);
   const car2 = n2(latestRefer['รถคันที่ 2'] || 0);
@@ -1141,27 +1151,19 @@ function buildOpdPage(opdMap,scMap){
       <span style="font-size: 24px; margin-right: 10px;">🚑</span>
       <h3 style="margin: 0; font-size: 16px; font-weight: 700; letter-spacing: 0.5px;">ศูนย์บัญชาการส่งต่อ (Referral Center)</h3>
     </div>
-    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 12px;">
-      <div style="background: rgba(255,255,255,0.15); padding: 12px 8px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">รับเข้า (In)</div>
-        <div style="font-size: 22px; font-weight: bold;">${refIn}</div>
-      </div>
-      <div style="background: rgba(255,255,255,0.15); padding: 12px 8px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">ส่งออก (Out)</div>
-        <div style="font-size: 22px; font-weight: bold;">${refOut}</div>
-      </div>
-      <div style="background: rgba(255,255,255,0.15); padding: 12px 8px; border-radius: 8px; text-align: center;">
-        <div style="font-size: 11px; opacity: 0.8; margin-bottom: 4px;">ส่งกลับ (Back)</div>
-        <div style="font-size: 22px; font-weight: bold;">${refBack}</div>
-      </div>
-      <div style="${pendingStyle} padding: 12px 8px; border-radius: 8px; text-align: center; transition: all 0.3s;">
-        <div style="font-size: 11px; opacity: ${pending > 0 ? '1' : '0.8'}; margin-bottom: 4px;">⚠️ ค้างส่งต่อ</div>
-        <div style="font-size: 22px; font-weight: bold;">${pending}</div>
-      </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px;">
+      <div style="background: rgba(255,255,255,0.15); padding: 8px; border-radius: 6px; text-align: center;"><div style="font-size: 10px; opacity: 0.8;">รับเข้า (In)</div><div style="font-size: 18px; font-weight: bold;">${refIn}</div></div>
+      <div style="background: rgba(255,255,255,0.15); padding: 8px; border-radius: 6px; text-align: center;"><div style="font-size: 10px; opacity: 0.8;">ส่งออก (Out)</div><div style="font-size: 18px; font-weight: bold;">${refOut}</div></div>
+      <div style="background: rgba(255,255,255,0.15); padding: 8px; border-radius: 6px; text-align: center;"><div style="font-size: 10px; opacity: 0.8;">ส่งกลับ (Back)</div><div style="font-size: 18px; font-weight: bold;">${refBack}</div></div>
+      <div style="background: rgba(255,255,255,0.15); padding: 8px; border-radius: 6px; text-align: center;"><div style="font-size: 10px; opacity: 0.8;">Receive</div><div style="font-size: 18px; font-weight: bold;">${refRec}</div></div>
+      <div style="background: rgba(255,255,255,0.15); padding: 8px; border-radius: 6px; text-align: center;"><div style="font-size: 10px; opacity: 0.8;">รับกลับ ปกส.</div><div style="font-size: 18px; font-weight: bold;">${refBackSSO}</div></div>
+      <div style="${pendingStyle} padding: 8px; border-radius: 6px; text-align: center; transition: all 0.3s;"><div style="font-size: 10px; opacity: 0.9;">⚠️ ค้างส่งต่อ</div><div style="font-size: 18px; font-weight: bold;">${pending}</div></div>
     </div>
-    <div style="background: rgba(0,0,0,0.25); padding: 10px 12px; border-radius: 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
+    
+    <div style="background: rgba(0,0,0,0.25); padding: 8px 10px; border-radius: 8px; font-size: 11px; display: flex; justify-content: space-between; align-items: center;">
       <div>🚐 <b>ภารกิจรถพยาบาล:</b></div>
-      <div>คันที่ 1: <b>${car1}</b> ราย &nbsp;|&nbsp; คันที่ 2: <b>${car2}</b> ราย &nbsp;|&nbsp; คันที่ 3: <b>${car3}</b> ราย</div>
+      <div>คันที่ 1: <b>${car1}</b> | คันที่ 2: <b>${car2}</b> | คันที่ 3: <b>${car3}</b></div>
     </div>
   </div>`;
 
@@ -1498,6 +1500,12 @@ function buildIPDForm(){
       ${(curWard.name && curWard.name.includes('สูติ')) ? `
       <div class="fi"><label style="color:#ea580c">👶 ยอดทารก</label><input class="ni" type="number" min="0" id="ipd-newborn" value="0" style="border-color:#fed7aa"></div>
       ` : ''}
+      
+      <!-- 👇 เพิ่มส่วนของ OPD Case เคมีบำบัดตรงนี้ 👇 -->
+      ${(curWard.name && curWard.name.includes('เคมีบำบัด')) ? `
+      <div class="fi"><label style="color:#0284c7">🏥 OPD Case</label><input class="ni" type="number" min="0" id="ipd-opdcase" value="0" style="border-color:#7dd3fc;background:#e0f2fe"></div>
+      ` : ''}
+
     </div>
   </div></div>
 
@@ -1522,7 +1530,8 @@ function buildIPDForm(){
   
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="fnote" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
-  </div></div>`;}
+  </div></div>`;
+}
 
 function recalcIPD(){
   const p=iv('fp'),a=iv('fa'),d=iv('fd'),o=iv('fo'),i=iv('fi');
@@ -1558,12 +1567,14 @@ function g(id){const e=$(id);return e?parseInt(e.value)||0:0;}
 function buildReferForm(){
   return `
   <div class="f-sec"><div class="f-sec-h"><span>🚑</span><span class="ft">ยอดรับ-ส่งต่อ (Refer)</span></div><div class="f-sec-b">
-    <div class="ig3">
+    <div class="ig3" style="margin-bottom:10px">
       <div class="fi"><label>Refer In (รับเข้า)</label><input class="ni" type="number" min="0" id="ref-in" value="0"></div>
       <div class="fi"><label>Refer Out (ส่งออก)</label><input class="ni" type="number" min="0" id="ref-out" value="0"></div>
       <div class="fi"><label>Refer Back (ส่งกลับ)</label><input class="ni" type="number" min="0" id="ref-back" value="0"></div>
     </div>
-    <div class="ig2" style="margin-top:8px">
+    <div class="ig3">
+      <div class="fi"><label style="color:#047857">Receive</label><input class="ni" type="number" min="0" id="ref-receive" value="0"></div>
+      <div class="fi"><label style="color:#1d4ed8">รับกลับตามสิทธิ ปกส.</label><input class="ni" type="number" min="0" id="ref-back-sso" value="0"></div>
       <div class="fi"><label style="color:var(--red)">⚠️ ค้าง Refer</label><input class="ni" type="number" min="0" id="ref-pending" value="0"></div>
     </div>
   </div></div>
@@ -1954,7 +1965,10 @@ function collectData(){
       // 👇 วิศวกรปรับตัวแปรตรงนี้ให้เป็น ra ครับ (แต่ยังดึงจากกล่องเดิม)
       const ga=g('ws-ga'),ra=g('ws-sb'),mac=g('ws-mac');const caseTotal=ga+ra+mac;
       const a1=g('ws-asa1'),a2=g('ws-asa2'),a3=g('ws-asa3'),a4=g('ws-asa4'),a5=g('ws-asa5'),a6=g('ws-asa6');
-      const asaT=a1+a2+a3+a4+a5+a6;const high=a4+a5+a6;
+      
+      // 📌 จุดที่แก้: เพิ่ม a3 เข้าไปบวกในกลุ่ม high เพื่อคิด % High Risk เริ่มที่ระดับ 3-6 ครับ
+      const asaT=a1+a2+a3+a4+a5+a6;const high=a3+a4+a5+a6;
+      
       const note=$('ws-note')?.value||'';
       row=[today,now,n,shiftName,caseTotal,ga,ra,mac,asaT,a1,a2,a3,a4,a5,a6,
         asaT>0?Math.round((high/asaT)*100)+'%':'0%',
@@ -1966,9 +1980,9 @@ function collectData(){
     if(n==='ศูนย์บัญชาการส่งต่อ'){
       const note=$('ref-note')?.value||'';
       const staffTotal = g('ref-rn')+g('ref-pn')+g('ref-driver')+g('ref-aid');
-      row=[today,now,n,shiftName,g('ref-in'),g('ref-out'),g('ref-back'),g('ref-pending'),g('ref-car1'),g('ref-car2'),g('ref-car3'),g('ref-rn'),g('ref-pn'),g('ref-driver'),g('ref-aid'),staffTotal,note,recorder];
+      row=[today,now,n,shiftName,g('ref-in'),g('ref-out'),g('ref-back'),g('ref-receive'),g('ref-back-sso'),g('ref-pending'),g('ref-car1'),g('ref-car2'),g('ref-car3'),g('ref-rn'),g('ref-pn'),g('ref-driver'),g('ref-aid'),staffTotal,note,recorder];
       return{sheet:'refer_census',
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','Refer In','Refer Out','Refer Back','ค้าง Refer','รถคันที่ 1','รถคันที่ 2','รถคันที่ 3','RN','PN/NA','พลขับ','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก'],rows:[row]};
+        headers:['วันที่','เวลา','หน่วยงาน','เวร','Refer In','Refer Out','Refer Back','Receive','รับกลับตามสิทธิ ปกส.','ค้าง Refer','รถคันที่ 1','รถคันที่ 2','รถคันที่ 3','RN','PN/NA','พลขับ','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก'],rows:[row]};
     }
     return null;
   }
@@ -1982,15 +1996,17 @@ function collectData(){
   const cri=iv('ipd-cri'), gen=iv('ipd-gen'), spc=iv('ipd-spc'), vent=iv('ipd-vent');
   
   const preop=iv('ipd-preop'), postop=iv('ipd-postop'), sft=iv('ipd-sft');
-  // 👇 ดึงค่าทารกมาครับ (ถ้าตึกไหนไม่มีช่องนี้ มันจะคืนค่าเป็น 0 ให้อัตโนมัติ ปลอดภัยครับ)
+  // 👇 ดึงค่าทารกมาครับ 
   const newborn = iv('ipd-newborn');
+  // 👇 เพิ่มการดึงค่า OPD Case ตรงนี้ครับ (ถ้าตึกอื่นไม่มีช่องนี้ จะคืนค่า 0 อัตโนมัติ)
+  const opdcase = iv('ipd-opdcase');
 
   return{sheet:'ward_census',
-    // 👇 เพิ่มหัวตาราง 'ทารก' ต่อท้ายเข้าไปครับ
-    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดยกมา','รับใหม่','จำหน่าย','ย้ายออก','รับย้าย','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','Pre-op','Post-op','Run SFT','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก','ทารก'],
+    // 👇 เพิ่มหัวตาราง 'OPD Case' ต่อท้ายเข้าไปครับ
+    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดยกมา','รับใหม่','จำหน่าย','ย้ายออก','รับย้าย','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','Pre-op','Post-op','Run SFT','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก','ทารก','OPD Case'],
     
-    // 👇 เพิ่มค่า newborn ต่อท้ายเข้าไปให้ตรงตำแหน่งกับหัวตารางครับ
-    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,preop,postop,sft,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder,newborn]]};
+    // 👇 เพิ่มค่า opdcase ต่อท้ายเข้าไปให้ตรงตำแหน่งกับหัวตารางครับ
+    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,preop,postop,sft,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder,newborn,opdcase]]};
 }
 
 // ════════════════════════════════════════
