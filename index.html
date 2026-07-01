@@ -997,6 +997,9 @@ function buildSUCards(spMap){
     
     <div class="su-stat"><span class="su-lbl">🤰 รอคลอด</span><span class="su-val" style="color:#8b5cf6; font-weight:bold;">${cl['รอคลอด']||'—'}</span></div>
     
+    <!-- 👇 บรรทัดที่เพิ่มใหม่: ดูแลผู้คลอด รพช. 👇 -->
+    <div class="su-stat"><span class="su-lbl">🏥 ดูแลผู้คลอด รพช.</span><span class="su-val" style="color:#047857; font-weight:bold;">${cl['ดูแลผู้คลอด รพช.']||'—'}</span></div>
+    
     <div class="su-stat"><span class="su-lbl">คลอดรวม</span><span class="su-val" style="color:var(--blue)">${clBirth||'—'}</span></div>
     <div class="su-stat"><span class="su-lbl">คลอดปกติ</span><span class="su-val" style="color:var(--grn)">${cl['คลอดปกติ']||'—'}</span></div>
     <div class="su-stat"><span class="su-lbl">C/S</span><span class="su-val" style="color:var(--amb)">${cl['C/S']||'—'}</span></div>
@@ -1166,7 +1169,7 @@ function buildOpdPage(opdMap,scMap){
   const rbc = $('referBannerContainer');
   if(rbc) rbc.innerHTML = referHtml;
 
-  // 🏥 2. วาดกราฟ OPD (ไม่มี Refer มาปนแล้ว)
+  // 🏥 2. วาดกราฟ OPD (แบบมีรายละเอียดแยกประเภทผู้ป่วย)
   const oc2=$('opdChart');
   if(oc2){
     const items=Object.values(opdMap).filter(r=>r['คลินิก']).sort((a,b)=>n2(b['รวมผู้ป่วย']||0)-n2(a['รวมผู้ป่วย']||0));
@@ -1175,9 +1178,37 @@ function buildOpdPage(opdMap,scMap){
     } else {
       const maxPt=Math.max(...items.map(r=>n2(r['รวมผู้ป่วย']||0)),1);
       oc2.innerHTML = items.map(r=>{
-        const pt=n2(r['รวมผู้ป่วย']||0);const meta=OPD_META[r['คลินิก']]||{icon:'🏥',color:'#0369a1'};
+        const pt=n2(r['รวมผู้ป่วย']||0);
+        const meta=OPD_META[r['คลินิก']]||{icon:'🏥',color:'#0369a1'};
         const staff=n2(r['RN']||0)+n2(r['PN/NA']||0)+n2(r['เจ้าหน้าที่']||0)+n2(r['คนงาน']||0);
-        return `<div class="opd-bar-row"><div class="opd-bar-label">${meta.icon} ${r['คลินิก'].replace('OPD ','')}</div><div class="opd-bar-track"><div class="opd-bar-fill" style="width:${Math.round((pt/maxPt)*100)}%;background:${meta.color}">${pt>0?pt:''}</div></div><span style="font-size:11px;color:var(--mut);min-width:36px;text-align:right">${staff>0?staff+' คน':'—'}</span></div>`;
+        
+        // 📌 ดึงค่าย่อยออกมาเตรียมไว้
+        const nGen = n2(r['นัดทั่วไป']||0);
+        const nTele = n2(r['Telemed']||0);
+        const nMor = n2(r['หมอพร้อม']||0);
+        const nWalk = n2(r['Walk-in']||0);
+        const nRef = n2(r['Refer นอกเขต 6']||0);
+        
+        // 🎨 สร้างป้าย Tag สีสวยๆ (จะแสดงก็ต่อเมื่อค่ามากกว่า 0)
+        let tags = '';
+        if(nGen>0) tags += `<span style="color:#1d4ed8; background:#eff6ff; padding:2px 6px; border-radius:4px; border:1px solid #bfdbfe;">นัด: ${nGen}</span>`;
+        if(nTele>0) tags += `<span style="color:#15803d; background:#dcfce7; padding:2px 6px; border-radius:4px; border:1px solid #86efac;">Tele: ${nTele}</span>`;
+        if(nMor>0) tags += `<span style="color:#047857; background:#d1fae5; padding:2px 6px; border-radius:4px; border:1px solid #6ee7b7;">หมอพร้อม: ${nMor}</span>`;
+        if(nWalk>0) tags += `<span style="color:#c2410c; background:#ffedd5; padding:2px 6px; border-radius:4px; border:1px solid #fdba74;">Walk-in: ${nWalk}</span>`;
+        if(nRef>0) tags += `<span style="color:#b91c1c; background:#fee2e2; padding:2px 6px; border-radius:4px; border:1px solid #fca5a5;">Referนอกเขต: ${nRef}</span>`;
+
+        return `
+        <div style="margin-bottom: 12px;">
+          <div class="opd-bar-row" style="margin-bottom: 4px;">
+            <div class="opd-bar-label">${meta.icon} ${r['คลินิก'].replace('OPD ','')}</div>
+            <div class="opd-bar-track">
+              <div class="opd-bar-fill" style="width:${Math.round((pt/maxPt)*100)}%;background:${meta.color}">${pt>0?pt:''}</div>
+            </div>
+            <span style="font-size:11px;color:var(--mut);min-width:36px;text-align:right" title="รวมบุคลากร">${staff>0?staff+' คน':'—'}</span>
+          </div>
+          <!-- แทรกป้าย Tag ไว้ใต้กราฟแท่ง -->
+          ${tags ? `<div style="display:flex; flex-wrap:wrap; gap:5px; font-size:10px; margin-left:85px; line-height:1.2;">${tags}</div>` : ''}
+        </div>`;
       }).join('');
     }
   }
@@ -1619,6 +1650,7 @@ function buildCLForm(){
       <div class="fi"><label>รอคลอด รพ.</label><input class="ni" type="number" min="0" id="cl-wr" value="0"></div>
       <div class="fi"><label>OPD Case</label><input class="ni" type="number" min="0" id="cl-opd" value="0"></div>
       <div class="fi"><label>Refer เข้า</label><input class="ni" type="number" min="0" id="cl-refin" value="0"></div>
+      <div class="fi"><label style="color:#047857">ดูแลผู้คลอด รพช.</label><input class="ni" type="number" min="0" id="cl-refer-care" value="0"></div>
     </div>
   </div></div>
   <div class="f-sec"><div class="f-sec-h" style="background:rgba(219,234,254,.4);border-color:#bfdbfe"><span>🍼</span><span class="ft" style="color:#1e40af">ยอดการคลอด</span></div><div class="f-sec-b">
@@ -1764,9 +1796,11 @@ function buildOpdClinicForm(){
   // 👇 1. เช็คว่าเป็นหน่วยส่องกล้องหรือไม่
   const isEndoscopy = curWard.name === 'ส่องกล้อง';
 
-  // 👇 2. แยกหน้าตาฟอร์ม: ถ้าเป็นส่องกล้องให้โชว์ 9 ช่องพิเศษ ถ้าไม่ใช่ให้โชว์นัด/Walk-in แบบเดิม
+  // 👇 2. แยกหน้าตาฟอร์มให้ตรงกับประเภทของแผนก
   let patientSectionHtml = '';
+  
   if (isEndoscopy) {
+    // 🏥 ฟอร์มสำหรับส่องกล้อง (9 ช่องแบบเดิม)
     patientSectionHtml = `
     <div class="f-sec"><div class="f-sec-h"><span>📊</span><span class="ft">ประเภทเคสส่องกล้อง</span></div><div class="f-sec-b">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
@@ -1775,7 +1809,6 @@ function buildOpdClinicForm(){
         <div class="fi"><label>งด Case</label><input class="ni" type="number" min="0" id="endo-cancel" value="0"></div>
       </div>
     </div></div>
-
     <div class="f-sec"><div class="f-sec-h"><span>🔬</span><span class="ft">รายการหัตถการ (ราย)</span></div><div class="f-sec-b">
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
         <div class="fi"><label>Colonoscope</label><input class="ni" type="number" min="0" id="endo-colono" value="0"></div>
@@ -1788,18 +1821,32 @@ function buildOpdClinicForm(){
         <div class="fi"><label>Coordination</label><input class="ni" type="number" min="0" id="endo-coord" value="0"></div>
       </div>
     </div></div>`;
-  } else {
-    // ฟอร์มทั่วไปสำหรับ OPD และหน่วยตรวจพิเศษอื่นๆ
+  } else if (isSpClinic) {
+    // 🏥 ฟอร์มสำหรับตรวจพิเศษอื่นๆ (ใช้แบบเดิม ไม่แก้ไข)
     patientSectionHtml = `
-    <div class="f-sec"><div class="f-sec-h"><span>👥</span><span class="ft">ผู้ป่วย</span></div><div class="f-sec-b">
+    <div class="f-sec"><div class="f-sec-h"><span>👥</span><span class="ft">ประเภทผู้ป่วย (ตรวจพิเศษ)</span></div><div class="f-sec-b">
       <div class="ig2">
         <div class="fi"><label>ผู้ป่วยนัด</label><input class="ni" type="number" min="0" id="opd-appt" value="0"></div>
-        <div class="fi"><label>Walk-in</label><input class="ni" type="number" min="0" id="opd-walkin" value="0"></div>
+        <div class="fi"><label>Walk-in/อื่นๆ</label><input class="ni" type="number" min="0" id="opd-walkin" value="0"></div>
+      </div>
+    </div></div>`;
+  } else {
+    // 🏥 ฟอร์มสำหรับ OPD ทั่วไป (แยก 5 ช่องแบบใหม่ล่าสุด)
+    patientSectionHtml = `
+    <div class="f-sec"><div class="f-sec-h"><span>👥</span><span class="ft">ประเภทผู้ป่วย (OPD)</span></div><div class="f-sec-b">
+      <div class="ig3">
+        <div class="fi"><label>นัดทั่วไป</label><input class="ni" type="number" min="0" id="opd-appt-gen" value="0"></div>
+        <div class="fi"><label>Telemed</label><input class="ni" type="number" min="0" id="opd-appt-tele" value="0"></div>
+        <div class="fi"><label>หมอพร้อม</label><input class="ni" type="number" min="0" id="opd-appt-mor" value="0"></div>
+      </div>
+      <div class="ig2" style="margin-top:10px">
+        <div class="fi"><label>Walk-in</label><input class="ni" type="number" min="0" id="opd-walkin-new" value="0"></div>
+        <div class="fi"><label style="color:#b91c1c">Refer นอกเขต 6</label><input class="ni" type="number" min="0" id="opd-refer-out6" value="0"></div>
       </div>
     </div></div>`;
   }
 
-  // ประกอบร่างฟอร์มทั้งหมดเข้าด้วยกัน
+  // 👇 3. ประกอบร่างฟอร์มทั้งหมดเข้าด้วยกัน
   $('efBody').innerHTML=`
   <div style="text-align:center;font-size:42px;margin-bottom:6px">${meta.icon}</div>
   
@@ -1834,34 +1881,30 @@ function collectData(){
   const recorder = $('recorder-name')?.value || '';
 
   if(curWard.isOPD){
-    const appt=iv('opd-appt'),walkin=iv('opd-walkin');
     const rn=iv('opd-rn'),pn=iv('opd-pn'),other=iv('opd-other'),aid=iv('opd-aid');
     const sheetName=curWard.dept==='ตรวจพิเศษ'?'special_clinic':'opd_census';
-    
-    // 👇 1. ดึงค่าจาก 9 ช่องของส่องกล้อง (ถ้าเป็นคลินิกอื่น ฟังก์ชัน iv จะคืนค่าเป็น 0 ให้อัตโนมัติ ปลอดภัยครับ)
-    const ele=iv('endo-elective'), eme=iv('endo-emergency'), can=iv('endo-cancel');
-    const col=iv('endo-colono'), gas=iv('endo-gastro'), erc=iv('endo-ercp');
-    const bro=iv('endo-broncho'), ple=iv('endo-pleuro'), coo=iv('endo-coord');
-    
-    // 👇 2. ปรับการคำนวณ "รวมผู้ป่วย": ถ้าเป็นส่องกล้องให้คิดจาก Elective + Emergency ถ้าไม่ใช่ให้ใช้นัด+Walk-in
     const isEndoscopy = curWard.name === 'ส่องกล้อง';
-    const totalPatients = isEndoscopy ? (ele + eme) : (appt + walkin);
-    
-    // โครงสร้างตารางมาตรฐานเดิม
-    let headers = ['วันที่','เวลา','คลินิก','เวร','ผู้ป่วยนัด','Walk-in','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก'];
-    let rowData = [today,now,curWard.name,sheetName==='special_clinic'?'ทั้งวัน':shiftName,appt,walkin,totalPatients,rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder];
-    
-    // 👇 3. ถ้าเป็นกลุ่มตรวจพิเศษ ให้พ่วง 9 คอลัมน์ของงานส่องกล้องต่อไปทางขวาสุดทันที
-    if(sheetName === 'special_clinic'){
-      headers = headers.concat(['Elective', 'Emergency', 'งดcase', 'Colonoscope', 'Gastroscope', 'ERCP', 'Bronchoscope', 'Pleuroscope', 'Coordination unit']);
-      rowData = rowData.concat([ele, eme, can, col, gas, erc, bro, ple, coo]);
+    let headers = [];
+    let rowData = [];
+
+    if(sheetName === 'special_clinic') {
+      const appt=iv('opd-appt'), walkin=iv('opd-walkin');
+      const ele=iv('endo-elective'), eme=iv('endo-emergency'), can=iv('endo-cancel');
+      const col=iv('endo-colono'), gas=iv('endo-gastro'), erc=iv('endo-ercp');
+      const bro=iv('endo-broncho'), ple=iv('endo-pleuro'), coo=iv('endo-coord');
+      const totalPatients = isEndoscopy ? (ele + eme) : (appt + walkin);
+      
+      headers = ['วันที่','เวลา','คลินิก','เวร','ผู้ป่วยนัด','Walk-in/อื่นๆ','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก', 'Elective', 'Emergency', 'งดcase', 'Colonoscope', 'Gastroscope', 'ERCP', 'Bronchoscope', 'Pleuroscope', 'Coordination unit'];
+      rowData = [today,now,curWard.name,'ทั้งวัน', appt,walkin,totalPatients, rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder, ele,eme,can,col,gas,erc,bro,ple,coo];
+    } else {
+      const apptGen=iv('opd-appt-gen'), apptTele=iv('opd-appt-tele'), apptMor=iv('opd-appt-mor');
+      const walkinNew=iv('opd-walkin-new'), referOut6=iv('opd-refer-out6');
+      const totalPatients = apptGen + apptTele + apptMor + walkinNew + referOut6;
+      
+      headers = ['วันที่','เวลา','คลินิก','เวร','นัดทั่วไป','Telemed','หมอพร้อม','Walk-in','Refer นอกเขต 6','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก'];
+      rowData = [today,now,curWard.name,shiftName, apptGen,apptTele,apptMor,walkinNew,referOut6,totalPatients, rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder];
     }
-    
-    return {
-      sheet: sheetName,
-      headers: headers,
-      rows: [rowData]
-    };
+    return { sheet: sheetName, headers: headers, rows: [rowData] };
   }
 
  if(curWard.isSpecial){
@@ -1879,13 +1922,13 @@ function collectData(){
           // 👇 สังเกตตรงนี้ครับ วิศวกรเปลี่ยนจาก 'Walk-in' เป็น 'EMS' ให้แล้วครับ
           headers:['วันที่','เวลา','หน่วยงาน','เวร','ยอดรวม','EMS','Observe รับ','Observe DC','Observe คงค้าง','แดง','ชมพู','เหลือง','เขียว','ขาว','DC','Admit','Refer','DEAD','คงค้าง','RN','PN','NA','คนงาน','Admit Rate','หมายเหตุ','ผู้บันทึก'],rows:[row]};
       }
-    if(n==='ห้องคลอด'){
+   if(n==='ห้องคลอด'){
       const normal=g('cl-normal'),abn=g('cl-abn'),cs=g('cl-cs');
       const birth=normal+abn+cs;
       const babyN=g('cl-baby-n'),babyAbn=g('cl-baby-abn');
       const note=$('cl-note')?.value||'';
       row=[today,now,n,shiftName,
-        g('cl-prev'),g('cl-new'),g('cl-wr'),g('cl-opd'),g('cl-refin'),
+        g('cl-prev'),g('cl-new'),g('cl-wr'),g('cl-opd'),g('cl-refin'),g('cl-refer-care'),
         normal,abn,cs,birth,
         g('cl-dc'),g('cl-tr'), 
         babyN,babyAbn,
@@ -1893,7 +1936,7 @@ function collectData(){
         birth>0?Math.round((cs/birth)*100)+'%':'0%',note,recorder, g('cl-rem')]; 
       return{sheet:'cl_census',
         headers:['วันที่','เวลา','หน่วยงาน','เวร',
-          'ยอดยกมา','รับใหม่','รอคลอด','OPD','Refer เข้า',
+          'ยอดยกมา','รับใหม่','รอคลอด','OPD','Refer เข้า','ดูแลผู้คลอด รพช.',
           'คลอดปกติ','คลอดผิดปกติ','C/S','คลอดรวม',
           'จำหน่าย','ย้ายหอ',
           'ทารกปกติ','ทารกผิดปกติ',
