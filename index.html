@@ -1908,8 +1908,11 @@ function collectData(){
       headers = ['วันที่','เวลา','คลินิก','เวร','ผู้ป่วยนัด','Walk-in/อื่นๆ','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก', 'Elective', 'Emergency', 'งดcase', 'Colonoscope', 'Gastroscope', 'ERCP', 'Bronchoscope', 'Pleuroscope', 'Coordination unit'];
       rowData = [today,now,curWard.name,'ทั้งวัน', appt,walkin,totalPatients, rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder, ele,eme,can,col,gas,erc,bro,ple,coo];
     } else {
+      // 📌 ใช้ iv() ดึงค่าตาม ID ที่ถูกต้อง (ต้องเช็คว่าใน index.html ตั้ง id ไว้แบบนี้จริงๆ นะครับ)
       const apptGen=iv('opd-appt-gen'), apptTele=iv('opd-appt-tele'), apptMor=iv('opd-appt-mor');
       const walkinNew=iv('opd-walkin-new'), referOut6=iv('opd-refer-out6');
+      
+      // 📌 คำนวณใหม่ให้ชัวร์
       const totalPatients = apptGen + apptTele + apptMor + walkinNew + referOut6;
       
       headers = ['วันที่','เวลา','คลินิก','เวร','นัดทั่วไป','Telemed','หมอพร้อม','Walk-in','Refer นอกเขต 6','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก'];
