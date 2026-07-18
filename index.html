@@ -1078,43 +1078,92 @@ function buildOccList(wardMap){
       <div class="occ-track"><div class="occ-fill" style="width:${Math.min(it.pct,100)}%;background:${oc(it.pct)}"></div></div>
     </div>`).join('');
 }
-function buildStaffPage(wardMap,spMap,opdMap,scMap){
-  const sl=$('staffList');
-  if(sl){
-    const items=Object.values(wardMap).filter(r=>n2(r['คงอยู่'])>0).sort((a,b)=>n2(b['คงอยู่'])-n2(a['คงอยู่']));
-    if(!items.length){sl.innerHTML='<div class="empty-state"><div class="ei">👩‍⚕️</div><p>ยังไม่มีข้อมูล</p></div>';}
-    else sl.innerHTML=items.map(r=>{
-      const pt=n2(r['คงอยู่']);const rn=n2(r['RN']);
-      const total=rn+n2(r['TN'])+n2(r['PN'])+n2(r['NA'])+n2(r['คนงาน']);
-      const ratio=rn>0?(pt/rn).toFixed(1):'—';
-      const cls=ratio==='—'?'p-ok':ratio>8?'p-d':ratio>6?'p-w':'p-ok';
-      return `<div class="sf-row"><span class="sf-name">${r['หอผู้ป่วย']}</span><span class="sf-c">${pt}</span><span class="sf-rn">RN ${rn}</span><span class="sf-total">${total} คน</span><span class="sf-ratio">${rn>0?'1:'+ratio:'—'}</span><span class="${cls}">${ratio==='—'?'—':ratio>8?'ขาดแคลน':ratio>6?'ตึงตัว':'พอเพียง'}</span></div>`;
+function buildStaffPage(wardMap, spMap, opdMap, scMap) {
+  // ฟังก์ชันตัวช่วย: สร้างป้าย + หรือ - ตามค่าที่ส่งเข้ามา
+  const getAdjBadge = (val, label) => {
+    if (val === 0) return '';
+    const color = val > 0 ? '#16a34a' : '#dc2626'; // เขียว = เพิ่ม, แดง = ลด
+    const sign = val > 0 ? '+' : '';
+    return `<span style="font-size:9px; color:${color}; background:${val > 0 ? '#dcfce7' : '#fee2e2'}; padding:1px 4px; border-radius:4px; margin-left:4px; font-weight:bold;">${label}${sign}${val}</span>`;
+  };
+
+  const sl = $('staffList');
+  if (sl) {
+    const items = Object.values(wardMap).filter(r => n2(r['คงอยู่']) > 0).sort((a, b) => n2(b['คงอยู่']) - n2(a['คงอยู่']));
+    if (!items.length) { sl.innerHTML = '<div class="empty-state"><div class="ei">👩‍⚕️</div><p>ยังไม่มีข้อมูล</p></div>'; }
+    else sl.innerHTML = items.map(r => {
+      const pt = n2(r['คงอยู่']);
+      const adjRn = n2(r['ปรับ RN'] || 0);
+      const adjPn = n2(r['ปรับ PN'] || 0);
+      const adjNa = n2(r['ปรับ NA'] || 0);
+
+      const rn = n2(r['RN']) + adjRn;
+      const pn = n2(r['PN']) + adjPn;
+      const na = n2(r['NA']) + adjNa;
+      const total = rn + n2(r['TN']) + pn + na + n2(r['คนงาน']);
+
+      const ratio = rn > 0 ? (pt / rn).toFixed(1) : '—';
+      const cls = ratio === '—' ? 'p-ok' : ratio > 8 ? 'p-d' : ratio > 6 ? 'p-w' : 'p-ok';
+
+      return `<div class="sf-row">
+        <span class="sf-name">${r['หอผู้ป่วย']} ${getAdjBadge(adjRn, 'RN')} ${getAdjBadge(adjPn, 'PN')} ${getAdjBadge(adjNa, 'NA')}</span>
+        <span class="sf-c">${pt}</span>
+        <span class="sf-rn">RN ${rn}</span>
+        <span class="sf-total">${total} คน</span>
+        <span class="sf-ratio">${rn > 0 ? '1:' + ratio : '—'}</span>
+        <span class="${cls}">${ratio === '—' ? '—' : ratio > 8 ? 'ขาดแคลน' : ratio > 6 ? 'ตึงตัว' : 'พอเพียง'}</span>
+      </div>`;
     }).join('');
   }
-  const susl=$('suStaffList');
-  if(susl){
-    const units=[
-      {name:'🚨 ER',r:spMap['ห้องฉุกเฉิน ER']||{}},
-      {name:'🤱 คลอด',r:spMap['ห้องคลอด']||{}},
-      {name:'🔪 OR',r:spMap['ห้องผ่าตัด OR']||{}},
-      {name:'💉 วิสัญญี',r:spMap['งานวิสัญญี']||{}},
+
+  const susl = $('suStaffList');
+  if (susl) {
+    const units = [
+      { name: '🚨 ER', r: spMap['ห้องฉุกเฉิน ER'] || {} },
+      { name: '🤱 คลอด', r: spMap['ห้องคลอด'] || {} },
+      { name: '🔪 OR', r: spMap['ห้องผ่าตัด OR'] || {} },
+      { name: '💉 วิสัญญี', r: spMap['งานวิสัญญี'] || {} },
     ];
-    susl.innerHTML=units.map(u=>{
-      const rn=n2(u.r['RN']);const total=rn+n2(u.r['TN']||0)+n2(u.r['PN']||0)+n2(u.r['NA']||0)+n2(u.r['คนงาน']||0);
-      const pt=n2(u.r['ยอดรวม']||u.r['เคสรวม']||u.r['คลอดรวม']||0)+n2(u.r['Emergency']||0)+n2(u.r['Elective']||0);
-      const ratio=rn>0&&pt>0?(pt/rn).toFixed(1):'—';
-      return `<div class="sf-row"><span class="sf-name">${u.name}</span><span class="sf-c">${pt||'—'}</span><span class="sf-rn">RN ${rn}</span><span class="sf-total">${total} คน</span><span class="sf-ratio">${ratio!=='—'?'1:'+ratio:'—'}</span><span class="p-ok">—</span></div>`;
+    susl.innerHTML = units.map(u => {
+      const adjRn = n2(u.r['ปรับ RN'] || 0);
+      const adjPn = n2(u.r['ปรับ PN'] || 0);
+      const adjNa = n2(u.r['ปรับ NA'] || 0);
+
+      const rn = n2(u.r['RN']) + adjRn;
+      const total = rn + n2(u.r['TN'] || 0) + n2(u.r['PN'] || 0) + adjPn + n2(u.r['NA'] || 0) + adjNa + n2(u.r['คนงาน'] || 0);
+      const pt = n2(u.r['ยอดรวม'] || u.r['เคสรวม'] || u.r['คลอดรวม'] || 0) + n2(u.r['Emergency'] || 0) + n2(u.r['Elective'] || 0);
+      const ratio = rn > 0 && pt > 0 ? (pt / rn).toFixed(1) : '—';
+      return `<div class="sf-row">
+        <span class="sf-name">${u.name} ${getAdjBadge(adjRn, 'RN')} ${getAdjBadge(adjPn, 'PN')} ${getAdjBadge(adjNa, 'NA')}</span>
+        <span class="sf-c">${pt || '—'}</span>
+        <span class="sf-rn">RN ${rn}</span>
+        <span class="sf-total">${total} คน</span>
+        <span class="sf-ratio">${ratio !== '—' ? '1:' + ratio : '—'}</span>
+        <span class="p-ok">—</span>
+      </div>`;
     }).join('');
   }
-  const osl=$('opdStaffList');
-  if(osl){
-    const allClinic=[...Object.values(opdMap),...Object.values(scMap)].filter(r=>r['คลินิก']);
-    if(!allClinic.length){osl.innerHTML='<div class="empty-state"><div class="ei">🏥</div><p>ยังไม่มีข้อมูล OPD</p></div>';}
-    else osl.innerHTML=allClinic.sort((a,b)=>n2(b['รวมผู้ป่วย']||0)-n2(a['รวมผู้ป่วย']||0)).map(r=>{
-      const pt=n2(r['รวมผู้ป่วย']||0);const rn=n2(r['RN']||0);
-      const total=rn+n2(r['PN/NA']||0)+n2(r['เจ้าหน้าที่']||0)+n2(r['คนงาน']||0);
-      const meta=(OPD_META[r['คลินิก']]||SPECIAL_CLINIC_META[r['คลินิก']]||{icon:'🏥'});
-      return `<div class="sf-row"><span style="font-size:15px">${meta.icon}</span><span class="sf-name">${r['คลินิก']}</span><span class="sf-c">${pt||'—'}</span><span class="sf-rn">RN ${rn}</span><span class="sf-total">${total} คน</span><span class="p-ok">—</span></div>`;
+
+  const osl = $('opdStaffList');
+  if (osl) {
+    const allClinic = [...Object.values(opdMap), ...Object.values(scMap)].filter(r => r['คลินิก']);
+    if (!allClinic.length) { osl.innerHTML = '<div class="empty-state"><div class="ei">🏥</div><p>ยังไม่มีข้อมูล OPD</p></div>'; }
+    else osl.innerHTML = allClinic.sort((a, b) => n2(b['รวมผู้ป่วย'] || 0) - n2(a['รวมผู้ป่วย'] || 0)).map(r => {
+      const pt = n2(r['รวมผู้ป่วย'] || 0);
+      const adjRn = n2(r['ปรับ RN'] || 0);
+      const adjOther = n2(r['ปรับ เจ้าหน้าที่'] || 0);
+
+      const rn = n2(r['RN'] || 0) + adjRn;
+      const total = rn + n2(r['PN/NA'] || 0) + n2(r['เจ้าหน้าที่'] || 0) + adjOther + n2(r['คนงาน'] || 0);
+      const meta = (OPD_META[r['คลินิก']] || SPECIAL_CLINIC_META[r['คลินิก']] || { icon: '🏥' });
+      return `<div class="sf-row">
+        <span style="font-size:15px">${meta.icon}</span>
+        <span class="sf-name">${r['คลินิก']} ${getAdjBadge(adjRn, 'RN')} ${getAdjBadge(adjOther, 'จนท')}</span>
+        <span class="sf-c">${pt || '—'}</span>
+        <span class="sf-rn">RN ${rn}</span>
+        <span class="sf-total">${total} คน</span>
+        <span class="p-ok">—</span>
+      </div>`;
     }).join('');
   }
 }
@@ -1288,21 +1337,25 @@ async function loadMonthly(){
     const w=r['หอผู้ป่วย'];if(!w) return;
     if(!wardSum[w]) wardSum[w]={ward:w,admit:0,dc:0,days:new Set(),totalCensus:0,count:0, beds:0};
     
-    wardSum[w].admit+=n2(r['รับใหม่']);
+    wardSum[w].admit += n2(r['รับใหม่']) + n2(r['รับย้าย']);
     wardSum[w].dc+=n2(r['จำหน่าย']);
     wardSum[w].totalCensus+=n2(r['คงอยู่']);
     wardSum[w].count++;
     wardSum[w].days.add(r['วันที่']);
     wardSum[w].beds = n2(r['เตียง']) || WARD_BEDS[w] || 0;
 
-    // 📊 จัดกลุ่มข้อมูลรายวัน (แก้บั๊กเพื่อดึงตัวเลขวันที่ออกมารวมเทรนด์)
     const dateStr = normDateStr(r['วันที่']);
     if(dateStr){
       const dayNum = parseInt(dateStr.split(' ')[0]);
       if(!isNaN(dayNum)){
-        if(!dailySum[dayNum]) dailySum[dayNum] = { census: 0, beds: 0 };
+        // 🟢 เพิ่ม admit: 0 เข้าไปตอนเริ่มต้นด้วยค่ะ
+        if(!dailySum[dayNum]) dailySum[dayNum] = { census: 0, beds: 0, admit: 0 }; 
+        
         dailySum[dayNum].census += n2(r['คงอยู่']);
         dailySum[dayNum].beds += n2(r['เตียง']) || WARD_BEDS[w] || 0;
+        
+        // 🟢 เพิ่มบรรทัดนี้เพื่อเก็บยอด Admit รวม
+        dailySum[dayNum].admit += (n2(r['รับใหม่']) + n2(r['รับย้าย'])); 
       }
     }
   });
@@ -1313,20 +1366,18 @@ async function loadMonthly(){
     const pct = r.beds > 0 ? Math.round((avgC / r.beds) * 100) : 0;
     return {...r, avgC: Math.round(avgC), pct};
   }).sort((a,b) => b.pct - a.pct);
-
-  // คำนวณแนวโน้มรายวัน (วันที่ 1 ถึง 31)
-  const trendItems = Object.keys(dailySum).map(d => {
-    const day = parseInt(d);
-    const data = dailySum[d];
-    const pct = data.beds > 0 ? Math.round((data.census / data.beds) * 100) : 0;
-    return { day, pct };
-  }).sort((a, b) => a.day - b.day);
+const trendItems = Object.keys(dailySum).map(d => {
+  const day = parseInt(d);
+  const data = dailySum[d];
+  const pct = data.beds > 0 ? Math.round((data.census / data.beds) * 100) : 0;
+  return { day, pct, admit: data.admit }; // เพิ่ม admit ตรงนี้
+}).sort((a, b) => a.day - b.day);
 
   const totA=items.reduce((s,r)=>s+r.admit,0),totD=items.reduce((s,r)=>s+r.dc,0);
 
   body.innerHTML=`
     <div class="kpi3" style="margin-bottom:16px">
-      <div class="kc kb" style="margin:0"><div class="kl">Admit รวม</div><div class="kn">${totA}</div><div class="ks">${monthTh}</div></div>
+      <div class="kc kb" style="margin:0"><div class="kl">รับใหม่+รับย้าย</div><div class="kn">${totA}</div><div class="ks">${monthTh}</div></div>
       <div class="kc kg" style="margin:0"><div class="kl">จำหน่าย</div><div class="kn">${totD}</div></div>
       <div class="kc ka" style="margin:0"><div class="kl">หอที่รายงาน</div><div class="kn">${items.length}</div></div>
     </div>
@@ -1353,7 +1404,23 @@ async function loadMonthly(){
         <p style="font-size:11px; color:var(--mut); margin:6px 0 0 0; text-align:center;">👉 ใช้นิ้วปัดเลื่อน ซ้าย-ขวา เพื่อดูแนวโน้มตั้งแต่วันที่ 1 ถึงสิ้นเดือนได้ครับ</p>
       </div>
     </div>
-
+   <!-- กราฟแนวโน้มการรับผู้ป่วยใหม่ -->
+    <div class="f-sec" style="margin-bottom:16px; border:1px solid var(--brd); border-radius:var(--r2); background:var(--surf);">
+      <div class="f-sec-h" style="background:var(--surf2); border-bottom:1px solid var(--brd);">
+        <span>📥</span><span class="ft">แนวโน้มการรับผู้ป่วยใหม่ (รับใหม่ + รับย้าย)</span>
+      </div>
+      <div class="f-sec-b" style="padding:24px 16px 12px 16px;">
+        <div style="display:flex; align-items:flex-end; overflow-x:auto; gap:12px; padding-bottom:12px; min-height:160px;">
+          ${trendItems.map(it => `
+            <div style="display:flex; flex-direction:column; align-items:center; min-width:35px; flex-shrink:0;">
+              <span style="font-size:10px; color:#2563eb; font-weight:bold; margin-bottom:6px;">${it.admit}</span>
+              <div style="width:16px; height:${Math.min(it.admit * 5, 110)}px; background:#2563eb; border-radius:4px 4px 0 0;"></div>
+              <div style="width:100%; height:1px; background:var(--brd); margin:6px 0;"></div>
+              <span style="font-size:11px; font-weight:700; color:var(--txt);">ว.${it.day}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
     <div class="f-sec" style="margin-bottom:16px; border:1px solid var(--brd); border-radius:var(--r2); background:var(--surf);">
       <div class="f-sec-h" style="background:var(--surf2); border-bottom:1px solid var(--brd);">
         <span>📊</span><span class="ft">อัตราครองเตียงเฉลี่ยแยกตามหอผู้ป่วย</span>
@@ -1379,7 +1446,7 @@ async function loadMonthly(){
 
     <div style="overflow-x:auto">
     <table class="month-table">
-      <thead><tr><th>หอผู้ป่วย</th><th>Admit รวม</th><th>จำหน่ายรวม</th><th>วันที่ส่งยอด</th></tr></thead>
+      <thead><tr><th>หอผู้ป่วย</th><th>รับใหม่+รับย้าย</th><th>จำหน่ายรวม</th><th>วันที่ส่งยอด</th></tr></thead>
       <tbody>${items.map((r,i)=>`<tr style="background:${i%2===0?'var(--surf)':'var(--surf2)'}">
         <td>${r.ward}</td>
         <td style="color:var(--blue);font-weight:700;font-family:'IBM Plex Sans Thai',sans-serif">${r.admit}</td>
@@ -1501,10 +1568,13 @@ function buildIPDForm(){
       <div class="fi"><label style="color:#ea580c">👶 ยอดทารก</label><input class="ni" type="number" min="0" id="ipd-newborn" value="0" style="border-color:#fed7aa"></div>
       ` : ''}
       
-      <!-- 👇 เพิ่มส่วนของ OPD Case เคมีบำบัดตรงนี้ 👇 -->
-      ${(curWard.name && curWard.name.includes('เคมีบำบัด')) ? `
-      <div class="fi"><label style="color:#0284c7">🏥 OPD Case</label><input class="ni" type="number" min="0" id="ipd-opdcase" value="0" style="border-color:#7dd3fc;background:#e0f2fe"></div>
-      ` : ''}
+ 
+${(curWard.name && (curWard.name.includes('เคมีบำบัด') || curWard.name.includes('สูติ-นรีเวชกรรม (สูติ 26/นรีเวช 10)'))) ? `
+    <div class="fi">
+      <label style="color:#0284c7">🏥 OPD Case</label>
+      <input class="ni" type="number" min="0" id="ipd-opdcase" value="0" style="border-color:#7dd3fc;background:#e0f2fe">
+    </div>
+` : ''}
 
     </div>
   </div></div>
@@ -1524,6 +1594,34 @@ function buildIPDForm(){
     </div>
   </div></div>
   
+  <!-- 🟢 เริ่ม: บล็อกปรับอัตรากำลังที่เพิ่มใหม่ 🟢 -->
+  <div class="f-sec"><div class="f-sec-h"><span>⚖️</span><span class="ft">ปรับอัตรากำลัง (เพิ่ม/ลด)</span></div><div class="f-sec-b">
+    <div class="ig3" style="margin-bottom:8px">
+      <div class="fi">
+        <label>ปรับ RN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-rn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-rn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ PN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-pn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-pn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ NA</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-na" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-na" value="0" style="width:100%">
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <!-- 🟢 จบ: บล็อกปรับอัตรากำลัง 🟢 -->
+
   <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
     <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
@@ -1593,9 +1691,39 @@ function buildReferForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="ref-aid" value="0"></div>
     </div>
   </div></div>
+  
+  <!-- 🟢 เริ่ม: บล็อกปรับอัตรากำลังสำหรับหน่วยงานพิเศษ 🟢 -->
+  <div class="f-sec"><div class="f-sec-h"><span>⚖️</span><span class="ft">ปรับอัตรากำลัง (เพิ่ม/ลด)</span></div><div class="f-sec-b">
+    <div class="ig3" style="margin-bottom:8px">
+      <div class="fi">
+        <label>ปรับ RN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-rn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-rn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ PN/NA</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-pn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-pn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ พลขับ/คนงาน</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-na" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-na" value="0" style="width:100%">
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <!-- 🟢 จบ: บล็อกปรับอัตรากำลังสำหรับหน่วยงานพิเศษ 🟢 -->
+
   <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
     <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
+  
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="ref-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
@@ -1644,9 +1772,39 @@ function buildERForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="er-aid" value="0"></div>
     </div>
   </div></div>
+  
+  <!-- 🟢 เริ่ม: บล็อกปรับอัตรากำลังสำหรับห้องฉุกเฉิน (ER) 🟢 -->
+  <div class="f-sec"><div class="f-sec-h"><span>⚖️</span><span class="ft">ปรับอัตรากำลัง (เพิ่ม/ลด)</span></div><div class="f-sec-b">
+    <div class="ig3" style="margin-bottom:8px">
+      <div class="fi">
+        <label>ปรับ RN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-rn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-rn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ PN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-pn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-pn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ NA</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-na" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-na" value="0" style="width:100%">
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <!-- 🟢 จบ: บล็อกปรับอัตรากำลังสำหรับห้องฉุกเฉิน (ER) 🟢 -->
+
   <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
     <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
+  
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="er-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
@@ -1706,9 +1864,39 @@ function buildCLForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="cl-aid" value="0"></div>
     </div>
   </div></div>
+  
+  <!-- 🟢 เริ่ม: บล็อกปรับอัตรากำลังสำหรับหน่วยงานนี้ (cl) 🟢 -->
+  <div class="f-sec"><div class="f-sec-h"><span>⚖️</span><span class="ft">ปรับอัตรากำลัง (เพิ่ม/ลด)</span></div><div class="f-sec-b">
+    <div class="ig3" style="margin-bottom:8px">
+      <div class="fi">
+        <label>ปรับ RN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-rn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-rn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ PN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-pn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-pn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ NA</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-na" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-na" value="0" style="width:100%">
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <!-- 🟢 จบ: บล็อกปรับอัตรากำลังสำหรับหน่วยงานนี้ (cl) 🟢 -->
+
   <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
     <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
+  
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="cl-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
@@ -1747,9 +1935,39 @@ function buildORForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="or-aid" value="0"></div>
     </div>
   </div></div>
+  
+  <!-- 🟢 เริ่ม: บล็อกปรับอัตรากำลังสำหรับห้องผ่าตัด (OR) 🟢 -->
+  <div class="f-sec"><div class="f-sec-h"><span>⚖️</span><span class="ft">ปรับอัตรากำลัง (เพิ่ม/ลด)</span></div><div class="f-sec-b">
+    <div class="ig3" style="margin-bottom:8px">
+      <div class="fi">
+        <label>ปรับ RN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-rn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-rn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ PN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-pn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-pn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ NA</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-na" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-na" value="0" style="width:100%">
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <!-- 🟢 จบ: บล็อกปรับอัตรากำลังสำหรับห้องผ่าตัด (OR) 🟢 -->
+
   <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
     <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
+  
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
     <textarea id="or-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
@@ -1790,6 +2008,35 @@ function buildWSForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="ws-aid" value="0"></div>
     </div>
   </div></div>
+  
+  <!-- 🟢 เริ่ม: บล็อกปรับอัตรากำลังสำหรับหน่วยงานนี้ (ws) 🟢 -->
+  <div class="f-sec"><div class="f-sec-h"><span>⚖️</span><span class="ft">ปรับอัตรากำลัง (เพิ่ม/ลด)</span></div><div class="f-sec-b">
+    <div class="ig3" style="margin-bottom:8px">
+      <div class="fi">
+        <label>ปรับ RN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-rn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-rn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ PN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-pn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-pn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ NA</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-na" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-na" value="0" style="width:100%">
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <!-- 🟢 จบ: บล็อกปรับอัตรากำลังสำหรับหน่วยงานนี้ (ws) 🟢 -->
+
   <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
     <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
@@ -1871,11 +2118,40 @@ function buildOpdClinicForm(){
       <div class="fi"><label>คนงาน</label><input class="ni" type="number" min="0" id="opd-aid" value="0"></div>
     </div>
   </div></div>
+  
+  <!-- 🟢 เริ่ม: บล็อกปรับอัตรากำลังสำหรับผู้ป่วยนอก (OPD) 🟢 -->
+  <div class="f-sec"><div class="f-sec-h"><span>⚖️</span><span class="ft">ปรับอัตรากำลัง (เพิ่ม/ลด)</span></div><div class="f-sec-b">
+    <div class="ig3" style="margin-bottom:8px">
+      <div class="fi">
+        <label>ปรับ RN</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-rn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-rn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ PN/NA</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-pn" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-pn" value="0" style="width:100%">
+        </div>
+      </div>
+      <div class="fi">
+        <label>ปรับ เจ้าหน้าที่</label>
+        <div style="display:flex; gap:4px;">
+          <select id="adj-type-other" style="border:1.5px solid var(--brd); border-radius:var(--r2); background:var(--surf2); color:var(--txt); padding:4px;"><option value="0">ปกติ</option><option value="1">เพิ่ม (+)</option><option value="-1">ลด (-)</option></select>
+          <input class="ni" type="number" min="0" id="adj-val-other" value="0" style="width:100%">
+        </div>
+      </div>
+    </div>
+  </div></div>
+  <!-- 🟢 จบ: บล็อกปรับอัตรากำลังสำหรับผู้ป่วยนอก (OPD) 🟢 -->
+
   <div class="f-sec"><div class="f-sec-h"><span>👤</span><span class="ft">ผู้บันทึกข้อมูล</span></div><div class="f-sec-b">
     <input type="text" id="recorder-name" placeholder="ระบุชื่อ-นามสกุล..." style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;color:var(--txt)">
   </div></div>
   <div class="f-sec"><div class="f-sec-h"><span>📝</span><span class="ft">หมายเหตุ</span></div><div class="f-sec-b">
-   <textarea id="opd-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
+     <textarea id="opd-note" rows="2" style="width:100%;padding:9px;background:var(--surf2);border:1.5px solid var(--brd);border-radius:var(--r2);font-family:'Sarabun',sans-serif;font-size:14px;resize:none;color:var(--txt)"></textarea>
   </div></div>`;
 }
 // ════════════════════════════════════════
@@ -1891,6 +2167,20 @@ function collectData(){
   const shiftName={morning:'เวรเช้า',afternoon:'เวรบ่าย',night:'เวรดึก'}[curShift];
   const recorder = $('recorder-name')?.value || '';
 
+  // ⚖️ [เพิ่มใหม่] ฟังก์ชันดึงและคำนวณค่า ปรับอัตรากำลัง (เพิ่ม/ลด)
+  const getAdjValue = (typeId, valId) => {
+    const typeEl = document.getElementById(typeId);
+    const valEl = document.getElementById(valId);
+    if (!typeEl || !valEl) return 0; 
+    let type = parseInt(typeEl.value) || 0;
+    let val = parseInt(valEl.value) || 0;
+    return type * val; 
+  };
+  const finalAdjRn = getAdjValue('adj-type-rn', 'adj-val-rn');
+  const finalAdjPn = getAdjValue('adj-type-pn', 'adj-val-pn');
+  const finalAdjNa = getAdjValue('adj-type-na', 'adj-val-na');
+  const finalAdjOther = getAdjValue('adj-type-other', 'adj-val-other');
+
   if(curWard.isOPD){
     const rn=iv('opd-rn'),pn=iv('opd-pn'),other=iv('opd-other'),aid=iv('opd-aid');
     const sheetName=curWard.dept==='ตรวจพิเศษ'?'special_clinic':'opd_census';
@@ -1905,18 +2195,17 @@ function collectData(){
       const bro=iv('endo-broncho'), ple=iv('endo-pleuro'), coo=iv('endo-coord');
       const totalPatients = isEndoscopy ? (ele + eme) : (appt + walkin);
       
-      headers = ['วันที่','เวลา','คลินิก','เวร','ผู้ป่วยนัด','Walk-in/อื่นๆ','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก', 'Elective', 'Emergency', 'งดcase', 'Colonoscope', 'Gastroscope', 'ERCP', 'Bronchoscope', 'Pleuroscope', 'Coordination unit'];
-      rowData = [today,now,curWard.name,'ทั้งวัน', appt,walkin,totalPatients, rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder, ele,eme,can,col,gas,erc,bro,ple,coo];
+      // 🟢 แทรกหัวตารางและข้อมูลปรับอัตรากำลังต่อท้ายสุด (4 คอลลัมน์)
+      headers = ['วันที่','เวลา','คลินิก','เวร','ผู้ป่วยนัด','Walk-in/อื่นๆ','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก', 'Elective', 'Emergency', 'งดcase', 'Colonoscope', 'Gastroscope', 'ERCP', 'Bronchoscope', 'Pleuroscope', 'Coordination unit', 'ปรับ RN', 'ปรับ PN', 'ปรับ NA', 'ปรับ เจ้าหน้าที่'];
+      rowData = [today,now,curWard.name,'ทั้งวัน', appt,walkin,totalPatients, rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder, ele,eme,can,col,gas,erc,bro,ple,coo, finalAdjRn, finalAdjPn, finalAdjNa, finalAdjOther];
     } else {
-      // 📌 ใช้ iv() ดึงค่าตาม ID ที่ถูกต้อง (ต้องเช็คว่าใน index.html ตั้ง id ไว้แบบนี้จริงๆ นะครับ)
       const apptGen=iv('opd-appt-gen'), apptTele=iv('opd-appt-tele'), apptMor=iv('opd-appt-mor');
       const walkinNew=iv('opd-walkin-new'), referOut6=iv('opd-refer-out6');
-      
-      // 📌 คำนวณใหม่ให้ชัวร์
       const totalPatients = apptGen + apptTele + apptMor + walkinNew + referOut6;
       
-      headers = ['วันที่','เวลา','คลินิก','เวร','นัดทั่วไป','Telemed','หมอพร้อม','Walk-in','Refer นอกเขต 6','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก'];
-      rowData = [today,now,curWard.name,shiftName, apptGen,apptTele,apptMor,walkinNew,referOut6,totalPatients, rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder];
+      // 🟢 แทรกหัวตารางและข้อมูลปรับอัตรากำลังต่อท้ายสุด (4 คอลลัมน์)
+      headers = ['วันที่','เวลา','คลินิก','เวร','นัดทั่วไป','Telemed','หมอพร้อม','Walk-in','Refer นอกเขต 6','รวมผู้ป่วย','RN','PN/NA','เจ้าหน้าที่','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก', 'ปรับ RN', 'ปรับ PN', 'ปรับ NA', 'ปรับ เจ้าหน้าที่'];
+      rowData = [today,now,curWard.name,shiftName, apptGen,apptTele,apptMor,walkinNew,referOut6,totalPatients, rn,pn,other,aid,rn+pn+other+aid,$('opd-note')?.value||'',recorder, finalAdjRn, finalAdjPn, finalAdjNa, finalAdjOther];
     }
     return { sheet: sheetName, headers: headers, rows: [rowData] };
   }
@@ -1929,63 +2218,67 @@ function collectData(){
         const red=g('er-red'),pink=g('er-pink'),yellow=g('er-yellow'),green=g('er-green'),white=g('er-white');
         const obs=g('er-obs'),obsDc=g('er-obs-dc'),obsRemain=g('er-obs-remain');
         const note=$('er-note')?.value||'';
+        
+        // 🟢 แทรกข้อมูลปรับอัตรากำลังต่อท้ายสุด (4 คอลลัมน์)
         row=[today,now,n,shiftName,total,g('er-walkin'),obs,obsDc,obsRemain,red,pink,yellow,green,white,
           g('er-dc'),admit,g('er-ref'),g('er-dead'),g('er-hold'),g('er-rn'),g('er-pn'),g('er-na'),g('er-aid'),
-          total>0?Math.round((admit/total)*100)+'%':'0%',note,recorder];
+          total>0?Math.round((admit/total)*100)+'%':'0%',note,recorder, finalAdjRn, finalAdjPn, finalAdjNa, finalAdjOther];
         return{sheet:'er_census',
-          // 👇 สังเกตตรงนี้ครับ วิศวกรเปลี่ยนจาก 'Walk-in' เป็น 'EMS' ให้แล้วครับ
-          headers:['วันที่','เวลา','หน่วยงาน','เวร','ยอดรวม','EMS','Observe รับ','Observe DC','Observe คงค้าง','แดง','ชมพู','เหลือง','เขียว','ขาว','DC','Admit','Refer','DEAD','คงค้าง','RN','PN','NA','คนงาน','Admit Rate','หมายเหตุ','ผู้บันทึก'],rows:[row]};
+          headers:['วันที่','เวลา','หน่วยงาน','เวร','ยอดรวม','EMS','Observe รับ','Observe DC','Observe คงค้าง','แดง','ชมพู','เหลือง','เขียว','ขาว','DC','Admit','Refer','DEAD','คงค้าง','RN','PN','NA','คนงาน','Admit Rate','หมายเหตุ','ผู้บันทึก', 'ปรับ RN', 'ปรับ PN', 'ปรับ NA', 'ปรับ เจ้าหน้าที่'],rows:[row]};
       }
    if(n==='ห้องคลอด'){
       const normal=g('cl-normal'),abn=g('cl-abn'),cs=g('cl-cs');
       const birth=normal+abn+cs;
       const babyN=g('cl-baby-n'),babyAbn=g('cl-baby-abn');
       const note=$('cl-note')?.value||'';
+      
+      // 🟢 แทรกข้อมูลปรับอัตรากำลังต่อท้ายสุด (4 คอลลัมน์)
       row=[today,now,n,shiftName,
         g('cl-prev'),g('cl-new'),g('cl-wr'),g('cl-opd'),g('cl-refin'),g('cl-refer-care'),
         normal,abn,cs,birth,
         g('cl-dc'),g('cl-tr'), 
         babyN,babyAbn,
         g('cl-rn'),g('cl-tn'),g('cl-pn'),g('cl-na'),g('cl-aid'), 
-        birth>0?Math.round((cs/birth)*100)+'%':'0%',note,recorder, g('cl-rem')]; 
+        birth>0?Math.round((cs/birth)*100)+'%':'0%',note,recorder, g('cl-rem'), finalAdjRn, finalAdjPn, finalAdjNa, finalAdjOther]; 
       return{sheet:'cl_census',
         headers:['วันที่','เวลา','หน่วยงาน','เวร',
           'ยอดยกมา','รับใหม่','รอคลอด','OPD','Refer เข้า','ดูแลผู้คลอด รพช.',
           'คลอดปกติ','คลอดผิดปกติ','C/S','คลอดรวม',
           'จำหน่าย','ย้ายหอ',
           'ทารกปกติ','ทารกผิดปกติ',
-          'RN','TN','PN','NA','คนงาน','% C/S','หมายเหตุ','ผู้บันทึก','ยอดยกไป'],
+          'RN','TN','PN','NA','คนงาน','% C/S','หมายเหตุ','ผู้บันทึก','ยอดยกไป', 'ปรับ RN', 'ปรับ PN', 'ปรับ NA', 'ปรับ เจ้าหน้าที่'],
           rows:[row]};
     }
     if(n==='ห้องผ่าตัด OR'){
       const el=g('or-elective'),em=g('or-emergency');
       const note=$('or-note')?.value||'';
-      row=[today,now,n,shiftName,el,em,g('or-cancel'),g('or-complex'),g('or-major'),g('or-minor'),g('or-proc'),g('or-rem'),g('or-rn'),g('or-pn'),g('or-na'),g('or-aid'),el+em,note,recorder];
+      
+      // 🟢 แทรกข้อมูลปรับอัตรากำลังต่อท้ายสุด (4 คอลลัมน์)
+      row=[today,now,n,shiftName,el,em,g('or-cancel'),g('or-complex'),g('or-major'),g('or-minor'),g('or-proc'),g('or-rem'),g('or-rn'),g('or-pn'),g('or-na'),g('or-aid'),el+em,note,recorder, finalAdjRn, finalAdjPn, finalAdjNa, finalAdjOther];
       return{sheet:'or_census',
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','Elective','Emergency','งด','ซับซ้อน','ใหญ่','เล็ก','หัตถการ','ยกไป','RN','PN','NA','คนงาน','รวมเคส','หมายเหตุ','ผู้บันทึก'],rows:[row]};
+        headers:['วันที่','เวลา','หน่วยงาน','เวร','Elective','Emergency','งด','ซับซ้อน','ใหญ่','เล็ก','หัตถการ','ยกไป','RN','PN','NA','คนงาน','รวมเคส','หมายเหตุ','ผู้บันทึก', 'ปรับ RN', 'ปรับ PN', 'ปรับ NA', 'ปรับ เจ้าหน้าที่'],rows:[row]};
     }
     if(n==='งานวิสัญญี'){
-      // 👇 วิศวกรปรับตัวแปรตรงนี้ให้เป็น ra ครับ (แต่ยังดึงจากกล่องเดิม)
       const ga=g('ws-ga'),ra=g('ws-sb'),mac=g('ws-mac');const caseTotal=ga+ra+mac;
       const a1=g('ws-asa1'),a2=g('ws-asa2'),a3=g('ws-asa3'),a4=g('ws-asa4'),a5=g('ws-asa5'),a6=g('ws-asa6');
-      
-      // 📌 จุดที่แก้: เพิ่ม a3 เข้าไปบวกในกลุ่ม high เพื่อคิด % High Risk เริ่มที่ระดับ 3-6 ครับ
       const asaT=a1+a2+a3+a4+a5+a6;const high=a3+a4+a5+a6;
-      
       const note=$('ws-note')?.value||'';
+      
+      // 🟢 แทรกข้อมูลปรับอัตรากำลังต่อท้ายสุด (4 คอลลัมน์)
       row=[today,now,n,shiftName,caseTotal,ga,ra,mac,asaT,a1,a2,a3,a4,a5,a6,
         asaT>0?Math.round((high/asaT)*100)+'%':'0%',
-        g('ws-prev'),g('ws-wait'),g('ws-back'),g('ws-rem'),g('ws-rn'),g('ws-pn'),g('ws-na'),g('ws-aid'),note,recorder];
+        g('ws-prev'),g('ws-wait'),g('ws-back'),g('ws-rem'),g('ws-rn'),g('ws-pn'),g('ws-na'),g('ws-aid'),note,recorder, finalAdjRn, finalAdjPn, finalAdjNa, finalAdjOther];
       return{sheet:'ws_census',
-        // 👇 เปลี่ยน 'SB' เป็น 'RA' ในบรรทัด headers นี้เรียบร้อยครับ
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','เคสรวม','GA','RA','MAC','ASA รวม','ASA1','ASA2','ASA3','ASA4','ASA5','ASA6','% High Risk','ยอดยกมา','รอ','ส่งกลับ','ยกไป','RN','PN','NA','คนงาน','หมายเหตุ','ผู้บันทึก'],rows:[row]};
+        headers:['วันที่','เวลา','หน่วยงาน','เวร','เคสรวม','GA','RA','MAC','ASA รวม','ASA1','ASA2','ASA3','ASA4','ASA5','ASA6','% High Risk','ยอดยกมา','รอ','ส่งกลับ','ยกไป','RN','PN','NA','คนงาน','หมายเหตุ','ผู้บันทึก', 'ปรับ RN', 'ปรับ PN', 'ปรับ NA', 'ปรับ เจ้าหน้าที่'],rows:[row]};
     }
     if(n==='ศูนย์บัญชาการส่งต่อ'){
       const note=$('ref-note')?.value||'';
       const staffTotal = g('ref-rn')+g('ref-pn')+g('ref-driver')+g('ref-aid');
-      row=[today,now,n,shiftName,g('ref-in'),g('ref-out'),g('ref-back'),g('ref-receive'),g('ref-back-sso'),g('ref-pending'),g('ref-car1'),g('ref-car2'),g('ref-car3'),g('ref-rn'),g('ref-pn'),g('ref-driver'),g('ref-aid'),staffTotal,note,recorder];
+      
+      // 🟢 แทรกข้อมูลปรับอัตรากำลังต่อท้ายสุด (4 คอลลัมน์)
+      row=[today,now,n,shiftName,g('ref-in'),g('ref-out'),g('ref-back'),g('ref-receive'),g('ref-back-sso'),g('ref-pending'),g('ref-car1'),g('ref-car2'),g('ref-car3'),g('ref-rn'),g('ref-pn'),g('ref-driver'),g('ref-aid'),staffTotal,note,recorder, finalAdjRn, finalAdjPn, finalAdjNa, finalAdjOther];
       return{sheet:'refer_census',
-        headers:['วันที่','เวลา','หน่วยงาน','เวร','Refer In','Refer Out','Refer Back','Receive','รับกลับตามสิทธิ ปกส.','ค้าง Refer','รถคันที่ 1','รถคันที่ 2','รถคันที่ 3','RN','PN/NA','พลขับ','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก'],rows:[row]};
+        headers:['วันที่','เวลา','หน่วยงาน','เวร','Refer In','Refer Out','Refer Back','Receive','รับกลับตามสิทธิ ปกส.','ค้าง Refer','รถคันที่ 1','รถคันที่ 2','รถคันที่ 3','RN','PN/NA','พลขับ','คนงาน','รวมบุคลากร','หมายเหตุ','ผู้บันทึก', 'ปรับ RN', 'ปรับ PN', 'ปรับ NA', 'ปรับ เจ้าหน้าที่'],rows:[row]};
     }
     return null;
   }
@@ -1997,19 +2290,16 @@ function collectData(){
   const note=$('fnote')?.value||'';
   
   const cri=iv('ipd-cri'), gen=iv('ipd-gen'), spc=iv('ipd-spc'), vent=iv('ipd-vent');
-  
   const preop=iv('ipd-preop'), postop=iv('ipd-postop'), sft=iv('ipd-sft');
-  // 👇 ดึงค่าทารกมาครับ 
   const newborn = iv('ipd-newborn');
-  // 👇 เพิ่มการดึงค่า OPD Case ตรงนี้ครับ (ถ้าตึกอื่นไม่มีช่องนี้ จะคืนค่า 0 อัตโนมัติ)
   const opdcase = iv('ipd-opdcase');
 
   return{sheet:'ward_census',
-    // 👇 เพิ่มหัวตาราง 'OPD Case' ต่อท้ายเข้าไปครับ
-    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดยกมา','รับใหม่','จำหน่าย','ย้ายออก','รับย้าย','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','Pre-op','Post-op','Run SFT','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก','ทารก','OPD Case'],
+    // 🟢 แทรกหัวตารางปรับอัตรากำลังต่อท้ายสุด (4 คอลลัมน์)
+    headers:['วันที่','เวลา','หอผู้ป่วย','เตียง','เวร','ยอดยกมา','รับใหม่','จำหน่าย','ย้ายออก','รับย้าย','คงอยู่','วิกฤต','สามัญ','พิเศษ','On respirator','Pre-op','Post-op','Run SFT','RN','TN','PN','NA','คนงาน','รวม จนท.','หมายเหตุ','ผู้บันทึก','ทารก','OPD Case', 'ปรับ RN', 'ปรับ PN', 'ปรับ NA', 'ปรับ เจ้าหน้าที่'],
     
-    // 👇 เพิ่มค่า opdcase ต่อท้ายเข้าไปให้ตรงตำแหน่งกับหัวตารางครับ
-    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,preop,postop,sft,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder,newborn,opdcase]]};
+    // 🟢 แทรกข้อมูลปรับอัตรากำลังต่อท้ายสุดให้ตรงกัน (4 คอลลัมน์)
+    rows:[[today,now,curWard.name,curWard.beds,shiftName,p,a,d,o,i,c,cri,gen,spc,vent,preop,postop,sft,rn,tn,pn,na,aid,rn+tn+pn+na+aid,note,recorder,newborn,opdcase, finalAdjRn, finalAdjPn, finalAdjNa, finalAdjOther]]};
 }
 
 // ════════════════════════════════════════
