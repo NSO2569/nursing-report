@@ -1338,7 +1338,7 @@ async function loadMonthly(){
     if(!wardSum[w]) wardSum[w]={ward:w,admit:0,dc:0,days:new Set(),totalCensus:0,count:0, beds:0};
     
     wardSum[w].admit += n2(r['รับใหม่']) + n2(r['รับย้าย']);
-    wardSum[w].dc+=n2(r['จำหน่าย']);
+    wardSum[w].dc += n2(r['จำหน่าย']) + n2(r['ย้ายออก']);
     wardSum[w].totalCensus+=n2(r['คงอยู่']);
     wardSum[w].count++;
     wardSum[w].days.add(r['วันที่']);
